@@ -1,0 +1,34 @@
+[package]
+name = "sablast-gui"
+version = "0.1.0"
+authors = ["Tommi Mäklin <tommi@maklin.fi>"]
+edition = "2021"
+rust-version = "1.80.0"
+license = "MIT OR Apache-2.0"
+
+[package.metadata.patch]
+crates = ["needletail", "sbwt"]
+
+[dependencies]
+## core
+sablast = { branch = "wasm-compatibility", git = "https://github.com/tmaklin/sablast" }
+needletail = { version = "0.5.1", default-features = false, features = ["flate2"] }
+tokio = { version = "1.40.0", features = ["rt"] }
+
+# Debug
+dioxus-logger = "0.5.1"
+
+## GUI
+dioxus = { version = "0.5", features = ["web", "router"] }
+manganis = "0.2.2"
+
+## Subdependencies that need features enabled
+getrandom = { version = "0.2", features = ["js"] }
+
+[patch.crates-io]
+needletail = { path="./target/patch/needletail-0.5.1" }
+sbwt = { path="./target/patch/sbwt-0.3.2" }
+
+[build-dependencies]
+patch-crate = "0.1"
+
