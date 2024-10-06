@@ -27,13 +27,13 @@ fn read_fastx_data(
     let mut seq_data: Vec<Vec<u8>> = Vec::new();
     let mut reader = needletail::parse_fastx_reader(contents).unwrap_or_else(|_| panic!("Expected valid fastX data"));
     loop {
-	let rec = reader.next();
-	match rec {
-	    Some(Ok(seqrec)) => {
-		seq_data.push(seqrec.normalize(true).as_ref().to_vec());
-	    },
-	    _ => break
-	}
+    let rec = reader.next();
+    match rec {
+        Some(Ok(seqrec)) => {
+        seq_data.push(seqrec.normalize(true).as_ref().to_vec());
+        },
+        _ => break
+    }
     }
     seq_data
 }
@@ -45,13 +45,13 @@ fn read_fastx_file(
     let mut seq_data: Vec<Vec<u8>> = Vec::new();
     let mut reader = needletail::parse_fastx_file(file).unwrap_or_else(|_| panic!("Expected valid fastX file at {}", file));
     loop {
-	let rec = reader.next();
-	match rec {
-	    Some(Ok(seqrec)) => {
-		seq_data.push(seqrec.normalize(true).as_ref().to_vec());
-	    },
-	    _ => break
-	}
+    let rec = reader.next();
+    match rec {
+        Some(Ok(seqrec)) => {
+        seq_data.push(seqrec.normalize(true).as_ref().to_vec());
+        },
+        _ => break
+    }
     }
     seq_data
 }
@@ -83,95 +83,95 @@ fn Home() -> Element {
 
 
     rsx! {
-	div {
-	    h2 { "Reference file" }
+    div {
+        h2 { "Reference file" }
             input {
-		// tell the input to pick a file
-		r#type: "file",
-		// list the accepted extensions
-		accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-		// pick multiple files
-		multiple: false,
-		onchange: move |evt| {
-		    async move {
-			if let Some(file_engine) = &evt.files() {
-			    let files = file_engine.files();
-			    for file_name in &files {
-				if let Some(file) = file_engine.read_file(file_name).await
-				{
-				    ref_data.write().append(&mut read_fastx_data(&file));
-				}
-			    }
-			}
-		    }
-		},
+        // tell the input to pick a file
+        r#type: "file",
+        // list the accepted extensions
+        accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
+        // pick multiple files
+        multiple: false,
+        onchange: move |evt| {
+            async move {
+            if let Some(file_engine) = &evt.files() {
+                let files = file_engine.files();
+                for file_name in &files {
+                if let Some(file) = file_engine.read_file(file_name).await
+                {
+                    ref_data.write().append(&mut read_fastx_data(&file));
+                }
+                }
             }
-	}
+            }
+        },
+            }
+    }
 
-	div {
-	    h2 { "Query file(s)" }
+    div {
+        h2 { "Query file(s)" }
             input {
-		// tell the input to pick a file
-		r#type: "file",
-		// list the accepted extensions
-		accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-		// pick multiple files
-		multiple: true,
-		onchange: move |evt| {
-		    async move {
-			if let Some(file_engine) = &evt.files() {
-			    let files = file_engine.files();
-			    for file_name in &files {
-				if let Some(file) = file_engine.read_file(file_name).await
-				{
-				    query_files.write().push(file.to_vec());
-				}
-			    }
-			}
-		    }
-		},
+        // tell the input to pick a file
+        r#type: "file",
+        // list the accepted extensions
+        accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
+        // pick multiple files
+        multiple: true,
+        onchange: move |evt| {
+            async move {
+            if let Some(file_engine) = &evt.files() {
+                let files = file_engine.files();
+                for file_name in &files {
+                if let Some(file) = file_engine.read_file(file_name).await
+                {
+                    query_files.write().push(file.to_vec());
+                }
+                }
             }
-	}
+            }
+        },
+            }
+    }
 
-    	div {
-	    h2 { "Result" }
-	    button {
-		onclick: move |event| {
-		    if ref_data.read().len() > 0 && query_files.read().len() > 0 {
-			let (sbwt, lcs) = sablast::index::build_sbwt_from_vecs(&ref_data.read(), &Some(sablast::index::BuildOpts::default()));
-			query_files.read().iter().for_each(|file| {
-			    let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
-			    while let Some(rec) = reader.next() {
-				let seqrec = rec.expect("Valid fastX record");
-				let contig = seqrec.id();
-				let seq = seqrec.normalize(true);
+        div {
+        h2 { "Result" }
+        button {
+        onclick: move |event| {
+            if ref_data.read().len() > 0 && query_files.read().len() > 0 {
+            let (sbwt, lcs) = sablast::index::build_sbwt_from_vecs(&ref_data.read(), &Some(sablast::index::BuildOpts::default()));
+            query_files.read().iter().for_each(|file| {
+                let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
+                while let Some(rec) = reader.next() {
+                let seqrec = rec.expect("Valid fastX record");
+                let contig = seqrec.id();
+                let seq = seqrec.normalize(true);
 
-				// Get local alignments for forward strand
-				let mut run_lengths: Vec<(usize, usize, char, usize, usize)> = sablast::find(&seq, &sbwt, &lcs).iter().map(|x| (x.0, x.1, '+', x.2 + x.3, x.3)).collect();
+                // Get local alignments for forward strand
+                let mut run_lengths: Vec<(usize, usize, char, usize, usize)> = sablast::find(&seq, &sbwt, &lcs).iter().map(|x| (x.0, x.1, '+', x.2 + x.3, x.3)).collect();
 
-				// Add local alignments for reverse _complement
-				run_lengths.append(&mut sablast::find(&seq.reverse_complement(), &sbwt, &lcs).iter().map(|x| (x.0, x.1, '-', x.2 + x.3, x.3)).collect());
+                // Add local alignments for reverse _complement
+                run_lengths.append(&mut sablast::find(&seq.reverse_complement(), &sbwt, &lcs).iter().map(|x| (x.0, x.1, '-', x.2 + x.3, x.3)).collect());
 
-				// Sort by q.start
-				run_lengths.sort_by_key(|x| x.0);
+                // Sort by q.start
+                run_lengths.sort_by_key(|x| x.0);
 
-				// Print results with query and ref name added
-				run_lengths.iter().for_each(|x| {
-				    res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-					     "query", "ref".to_string(), x.0, x.1, x.2, x.3, x.4, std::str::from_utf8(contig).expect("UTF-8")));
-				});
-			    }
-			});
-		    }
-		},
-		"run!",
-	    }
-	    for result in res() {
-		// Notice the body of this for loop is rsx code, not an expression
-		div {
-		    { result }
-		}
-	    }
-	}
+                // Print results with query and ref name added
+                run_lengths.iter().for_each(|x| {
+                    res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                         "query", "ref".to_string(), x.0, x.1, x.2, x.3, x.4, std::str::from_utf8(contig).expect("UTF-8")));
+                });
+                }
+            });
+            }
+        },
+        "run!",
+        }
+        for result in res() {
+        // Notice the body of this for loop is rsx code, not an expression
+        div {
+            { result }
+        }
+        }
+    }
     }
 }
