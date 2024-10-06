@@ -23,7 +23,6 @@ manganis = "0.2.2"
 ## Subdependencies that need features enabled
 getrandom = { version = "0.2", features = ["js"] }
 
-
 [dependencies.needletail]
 version = "0.5.1"
 features = ["flate2"]
@@ -33,7 +32,6 @@ default-features = false
 git = "https://github.com/tmaklin/sablast"
 branch = "wasm-compatibility"
 features = []
-
 
 [build-dependencies]
 patch-crate = "0.1"
