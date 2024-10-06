@@ -7,7 +7,7 @@ rust-version = "1.80.0"
 license = "MIT OR Apache-2.0"
 
 [package.metadata.patch]
-crates = ["needletail", "sbwt"]
+crates = ["needletail", "sbwt", "simple-sds-sbwt"]
 
 [dependencies]
 ## core
@@ -25,10 +25,29 @@ manganis = "0.2.2"
 ## Subdependencies that need features enabled
 getrandom = { version = "0.2", features = ["js"] }
 
-[patch.crates-io]
-needletail = { path="./target/patch/needletail-0.5.1" }
-sbwt = { path="./target/patch/sbwt-0.3.2" }
+
+[dependencies.needletail]
+version = "0.5.1"
+features = ["flate2"]
+default-features = false
+
+[dependencies.sablast]
+git = "https://github.com/tmaklin/sablast"
+branch = "wasm-compatibility"
+features = []
+
 
 [build-dependencies]
 patch-crate = "0.1"
 
+[patch.crates-io.needletail]
+path = "./target/patch/needletail-0.5.1"
+features = []
+
+[patch.crates-io.sbwt]
+path = "./target/patch/sbwt-0.3.2"
+features = []
+
+[patch.crates-io.simple-sds-sbwt]
+path = "./target/patch/simple-sds-sbwt-0.3.1"
+features = []
