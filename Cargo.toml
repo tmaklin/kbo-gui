@@ -11,8 +11,6 @@ crates = ["needletail", "sbwt", "simple-sds-sbwt"]
 
 [dependencies]
 ## core
-sablast = { branch = "wasm-compatibility", git = "https://github.com/tmaklin/sablast" }
-needletail = { version = "0.5.1", default-features = false, features = ["flate2"] }
 tokio = { version = "1.40.0", features = ["rt"] }
 
 # Debug
