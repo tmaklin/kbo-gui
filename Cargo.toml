@@ -41,8 +41,8 @@ path = "./target/patch/e87920c"
 features = []
 
 [patch.crates-io.sbwt]
-path = "./target/patch/sbwt-0.3.2"
-features = []
+path = "./target/patch/sbwt-0.3.3"
+features = ["bpks-mem"]
 
 [patch.crates-io.simple-sds-sbwt]
 path = "./target/patch/simple-sds-sbwt-0.3.1"
