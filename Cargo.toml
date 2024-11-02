@@ -7,7 +7,7 @@ rust-version = "1.80.0"
 license = "MIT OR Apache-2.0"
 
 [package.metadata.patch]
-crates = ["needletail", "sbwt", "simple-sds-sbwt"]
+crates = ["sbwt", "simple-sds-sbwt"]
 
 [dependencies]
 ## core
@@ -24,7 +24,7 @@ manganis = "0.2.2"
 getrandom = { version = "0.2", features = ["js"] }
 
 [dependencies.needletail]
-version = "0.5.1"
+version = "0.6.0"
 features = ["flate2"]
 default-features = false
 
@@ -36,8 +36,8 @@ features = []
 [build-dependencies]
 patch-crate = "0.1"
 
-[patch.crates-io.needletail]
-path = "./target/patch/needletail-0.5.1"
+[patch.crates-io.sablast]
+path = "./target/patch/e87920c"
 features = []
 
 [patch.crates-io.sbwt]
