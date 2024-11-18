@@ -147,18 +147,24 @@ fn Home() -> Element {
                 let seq = seqrec.normalize(true);
 
                 // Get local alignments for forward strand
-                let mut run_lengths: Vec<(usize, usize, char, usize, usize)> = kbo::find(&seq, &sbwt, &lcs).iter().map(|x| (x.0, x.1, '+', x.2 + x.3, x.3)).collect();
+                let mut run_lengths = kbo::find(&seq, &sbwt, &lcs, kbo::FindOpts::default());
 
                 // Add local alignments for reverse _complement
-                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &sbwt, &lcs).iter().map(|x| (x.0, x.1, '-', x.2 + x.3, x.3)).collect());
+                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default()));
 
                 // Sort by q.start
-                run_lengths.sort_by_key(|x| x.0);
+                run_lengths.sort_by_key(|x| x.start);
 
                 // Print results with query and ref name added
                 run_lengths.iter().for_each(|x| {
                     res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                         "query", "ref".to_string(), x.0, x.1, x.2, x.3, x.4, std::str::from_utf8(contig).expect("UTF-8")));
+                                             "query", "ref",
+                                             x.start,
+                                             x.end,
+                                             x.end - x.start + 1,
+                                             x.mismatches,
+                                             x.gap_opens,
+                                             std::str::from_utf8(contig).expect("UTF-8")));
                 });
                 }
             });
