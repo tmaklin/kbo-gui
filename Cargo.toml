@@ -7,10 +7,11 @@ rust-version = "1.80.0"
 license = "MIT OR Apache-2.0"
 
 [package.metadata.patch]
-crates = ["sablast", "sbwt", "simple-sds-sbwt"]
+crates = ["sbwt", "simple-sds-sbwt"]
 
 [dependencies]
 ## core
+kbo = "0.4.0"
 tokio = { version = "1.40.0", features = ["rt"] }
 
 # Debug
@@ -28,17 +29,8 @@ version = "0.6.0"
 features = ["flate2"]
 default-features = false
 
-[dependencies.sablast]
-git = "https://github.com/tmaklin/sablast"
-branch = "wasm-compatibility"
-features = []
-
 [build-dependencies]
 patch-crate = "0.1"
-
-[patch.crates-io.sablast]
-path = "./target/patch/e87920c"
-features = []
 
 [patch.crates-io.sbwt]
 path = "./target/patch/sbwt-0.3.3"

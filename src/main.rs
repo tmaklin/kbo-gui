@@ -138,7 +138,7 @@ fn Home() -> Element {
         button {
         onclick: move |event| {
             if ref_data.read().len() > 0 && query_files.read().len() > 0 {
-            let (sbwt, lcs) = sablast::index::build_sbwt_from_vecs(&ref_data.read(), &Some(sablast::index::BuildOpts::default()));
+            let (sbwt, lcs) = kbo::index::build_sbwt_from_vecs(&ref_data.read(), &Some(kbo::index::BuildOpts::default()));
             query_files.read().iter().for_each(|file| {
                 let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
                 while let Some(rec) = reader.next() {
@@ -147,10 +147,10 @@ fn Home() -> Element {
                 let seq = seqrec.normalize(true);
 
                 // Get local alignments for forward strand
-                let mut run_lengths: Vec<(usize, usize, char, usize, usize)> = sablast::find(&seq, &sbwt, &lcs).iter().map(|x| (x.0, x.1, '+', x.2 + x.3, x.3)).collect();
+                let mut run_lengths: Vec<(usize, usize, char, usize, usize)> = kbo::find(&seq, &sbwt, &lcs).iter().map(|x| (x.0, x.1, '+', x.2 + x.3, x.3)).collect();
 
                 // Add local alignments for reverse _complement
-                run_lengths.append(&mut sablast::find(&seq.reverse_complement(), &sbwt, &lcs).iter().map(|x| (x.0, x.1, '-', x.2 + x.3, x.3)).collect());
+                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &sbwt, &lcs).iter().map(|x| (x.0, x.1, '-', x.2 + x.3, x.3)).collect());
 
                 // Sort by q.start
                 run_lengths.sort_by_key(|x| x.0);
