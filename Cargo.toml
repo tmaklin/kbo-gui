@@ -6,9 +6,6 @@ edition = "2021"
 rust-version = "1.80.0"
 license = "MIT OR Apache-2.0"
 
-[package.metadata.patch]
-crates = ["sbwt", "simple-sds-sbwt"]
-
 [dependencies]
 ## core
 kbo = "0.4.0"
@@ -29,13 +26,5 @@ version = "0.6.0"
 features = ["flate2"]
 default-features = false
 
-[build-dependencies]
-patch-crate = "0.1"
-
-[patch.crates-io.sbwt]
-path = "./target/patch/sbwt-0.3.3"
-features = ["bpks-mem"]
-
-[patch.crates-io.simple-sds-sbwt]
-path = "./target/patch/simple-sds-sbwt-0.3.1"
-features = []
+# [build-dependencies]
+# patch-crate = "0.1"
