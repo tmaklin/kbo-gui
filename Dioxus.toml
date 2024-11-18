@@ -1,11 +1,11 @@
 [application]
-name = "sablast-gui"
+name = "kbo-gui"
 default_platform = "web"
 out_dir = "dist"
 asset_dir = "assets"
 
 [web.app]
-title = "sablast-gui"
+title = "kbo-gui"
 
 [web.watcher]
 reload_html = true

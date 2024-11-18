@@ -1,4 +1,4 @@
-// sablast-gui: Graphical user interface for sablast built with Dioxus.
+// kbo-gui: Graphical user interface for kbo built with Dioxus.
 //
 // Copyright 2024 Tommi Mäklin [tommi@maklin.fi].
 

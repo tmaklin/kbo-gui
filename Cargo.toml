@@ -1,5 +1,5 @@
 [package]
-name = "sablast-gui"
+name = "kbo-gui"
 version = "0.1.0"
 authors = ["Tommi Mäklin <tommi@maklin.fi>"]
 edition = "2021"
