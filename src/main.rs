@@ -82,6 +82,18 @@ fn build_sbwt(file_contents: &[Vec<u8>]) -> (sbwt::SbwtIndexVariant, sbwt::LcsAr
     kbo::index::build_sbwt_from_vecs(&ref_data, &Some(kbo::index::BuildOpts::default()))
 }
 
+fn read_seq_data(file_contents: &Vec<u8>) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let mut seq_data: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
+    let mut reader = needletail::parse_fastx_reader(file_contents.deref()).expect("valid fastX data");
+    while let Some(rec) = reader.next() {
+        let seqrec = rec.expect("Valid fastX record");
+        let contig = seqrec.id();
+        let seq = seqrec.normalize(true);
+        seq_data.push((contig.to_vec(), seq.to_vec()));
+    }
+    seq_data
+}
+
 #[component]
 fn Home() -> Element {
     let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
@@ -89,13 +101,14 @@ fn Home() -> Element {
     let mut res = use_signal(Vec::<String>::new);
 
     let mut indexes: Vec<(sbwt::SbwtIndexVariant, sbwt::LcsArray)> = Vec::new();
+    let mut queries: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
 
     rsx! {
         div {
             h2 { "Reference file" }
             FastaFileSelector { multiple: false, seq_data: ref_files }
             {
-                // Build the index immediately after data is uploaded
+                // Build the index immediately after data is selected
                 if ref_files.read().len() > 0 {
                     indexes.push(build_sbwt(ref_files.read().as_ref()));
                 }
@@ -105,6 +118,14 @@ fn Home() -> Element {
         div {
             h2 { "Query file(s)" }
             FastaFileSelector { multiple: true, seq_data: query_files }
+            {
+                // Read inputs
+                if query_files.read().len() > 0 {
+                    query_files.read().iter().for_each(|query| {
+                        queries.extend(read_seq_data(query));
+                    })
+                }
+            }
         }
 
         div {
@@ -112,35 +133,27 @@ fn Home() -> Element {
             button {
                 onclick: move |_event| {
                     if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                        queries.iter().for_each(|(contig, seq)| {
+                            // Get local alignments for forward strand
+                            let mut run_lengths = kbo::find(seq, &indexes[0].0, &indexes[0].1, kbo::FindOpts::default());
 
-                        query_files.read().iter().for_each(|file| {
-                            let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
-                            while let Some(rec) = reader.next() {
-                                let seqrec = rec.expect("Valid fastX record");
-                                let contig = seqrec.id();
-                                let seq = seqrec.normalize(true);
+                            // Add local alignments for reverse complement
+                            run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &indexes[0].0, &indexes[0].1, kbo::FindOpts::default()));
 
-                                // Get local alignments for forward strand
-                                let mut run_lengths = kbo::find(&seq, &indexes[0].0, &indexes[0].1, kbo::FindOpts::default());
+                            // Sort by q.start
+                            run_lengths.sort_by_key(|x| x.start);
 
-                                // Add local alignments for reverse _complement
-                                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &indexes[0].0, &indexes[0].1, kbo::FindOpts::default()));
-
-                                // Sort by q.start
-                                run_lengths.sort_by_key(|x| x.start);
-
-                                // Print results with query and ref name added
-                                run_lengths.iter().for_each(|x| {
-                                    res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                                                             "query", "ref",
-                                                             x.start,
-                                                             x.end,
-                                                             x.end - x.start + 1,
-                                                             x.mismatches,
-                                                             x.gap_opens,
-                                                             std::str::from_utf8(contig).expect("UTF-8")));
-                                });
-                            }
+                            // Print results with query and ref name added
+                            run_lengths.iter().for_each(|x| {
+                                res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                                                         "query", "ref",
+                                                         x.start,
+                                                         x.end,
+                                                         x.end - x.start + 1,
+                                                         x.mismatches,
+                                                         x.gap_opens,
+                                                         std::str::from_utf8(contig).expect("UTF-8")));
+                            });
                         });
                     }
                 },
