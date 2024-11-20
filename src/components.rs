@@ -14,6 +14,21 @@
 use dioxus::prelude::*;
 use needletail::Sequence;
 
+struct FindResult {
+    pub query_file: String,
+    pub ref_file: String,
+    pub start: u64,
+    pub end: u64,
+    pub strand: char,
+    pub length: u64,
+    pub mismatches: u64,
+    pub gap_opens: u64,
+    pub identity: f64,
+    pub coverage: f64,
+    pub query_contig: String,
+    pub ref_contig: String,
+}
+
 #[component]
 pub fn FastaFileSelector(
     multiple: bool,
@@ -59,9 +74,13 @@ pub fn Find(
     queries: Vec<crate::util::ContigData>,
     refseqs: Vec<crate::util::ContigData>,
 ) -> Element {
-    let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String, String)>::new);
+    // let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String, String)>::new);
+    let mut res = use_signal(Vec::<FindResult>::new);
 
     let mut detailed:Signal<bool> = use_signal(|| false);
+    // let mut min_len:Signal<u64> = use_signal(|| 100_u64);
+    // let mut max_gap_len:Signal<u64> = use_signal(|| 0_u64);
+    // let mut max_error_prob:Signal<f64> = use_signal(|| 0.0000001_f64);
 
     rsx! {
         div {
@@ -109,17 +128,21 @@ pub fn Find(
 
                                 // Print results with query and ref name added
                                 run_lengths.iter().for_each(|x| {
-                                    res.write().push((
-                                        "query".to_string(),
-                                        "ref".to_string(),
-                                        x.start.to_string(),
-                                        x.end.to_string(),
-                                        (x.end - x.start + 1).to_string(),
-                                        x.mismatches.to_string(),
-                                        x.gap_opens.to_string(),
-                                        contig.name.clone(),
-                                        ref_contig.clone(),
-                                    ));
+                                    let result = FindResult {
+                                        query_file: "query".to_string(),
+                                        ref_file: "ref".to_string(),
+                                        start: x.start as u64,
+                                        end: x.end as u64,
+                                        strand: '/',
+                                        length: (x.end - x.start + 1) as u64,
+                                        mismatches: x.mismatches as u64,
+                                        gap_opens: x.gap_opens as u64,
+                                        identity: -1_f64,
+                                        coverage: -1_f64,
+                                        query_contig: contig.name.clone(),
+                                        ref_contig: ref_contig.clone(),
+                                    };
+                                    res.write().push(result);
                                 });
                             });
                         });
@@ -135,11 +158,14 @@ pub fn Find(
                             td { "ref" }
                             td { "q.start" }
                             td { "q.end" }
+                            td { "strand" }
                             td { "length" }
                             td { "mismatches" }
                             td { "gap_opens" }
-                            td { "ref_contig" }
-                            td { "query_contig" }
+                            td { "identity" }
+                            td { "coverage" }
+                            td { "query.contig" }
+                            td { "ref.contig" }
                         }
                     }
                     tbody {
@@ -147,15 +173,18 @@ pub fn Find(
                             res.read().iter().map(|row| {
                                 rsx! {
                                     tr {
-                                        td { "{row.0}" }
-                                        td { "{row.1}" }
-                                        td { "{row.2}" }
-                                        td { "{row.3}" }
-                                        td { "{row.4}" }
-                                        td { "{row.5}" }
-                                        td { "{row.6}" }
-                                        td { "{row.8}" }
-                                        td { "{row.7}" }
+                                        td { "{row.query_file}" }
+                                        td { "{row.ref_file}" }
+                                        td { "{row.start}" }
+                                        td { "{row.end}" }
+                                        td { "{row.strand}" }
+                                        td { "{row.length}" }
+                                        td { "{row.mismatches}" }
+                                        td { "{row.gap_opens}" }
+                                        td { "{row.identity}" }
+                                        td { "{row.coverage}" }
+                                        td { "{row.query_contig}" }
+                                        td { "{row.ref_contig}" }
                                     }
                                 }
                             })
