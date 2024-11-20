@@ -14,6 +14,7 @@
 #![allow(non_snake_case)]
 
 mod components;
+mod dioxus_sortable;
 mod util;
 mod webgui;
 
