@@ -44,6 +44,7 @@ pub fn Kbo() -> Element {
                     *kbo_mode.write() = KboMode::Find;
                 },
             }
+            "Find"
             input {
                 r#type: "radio",
                 name: "kbo-mode",
@@ -52,6 +53,7 @@ pub fn Kbo() -> Element {
                     *kbo_mode.write() = KboMode::Map;
                 },
             }
+            "Map"
         }
 
         div {
