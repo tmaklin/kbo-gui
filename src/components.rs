@@ -102,26 +102,32 @@ pub fn Find(
             button {
                 onclick: move |_event| {
                     if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                        let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String)> = Vec::new();
+                        let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
 
                         if !*detailed.read() {
 
                             // TODO Clone here should be made unnecessary
 
-                            indexes.push((crate::util::build_sbwt(&[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()]), "ref_file".to_string()));
+                            let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
+                            indexes.push((crate::util::build_sbwt(&[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()]), "ref_file".to_string(), bases));
                         } else {
                             refseqs.iter().for_each(|contig| {
-                                indexes.push((crate::util::build_sbwt(&[contig.seq.clone()]), contig.name.clone()));
+                                let bases: u64 = contig.seq.len() as u64;
+                                indexes.push((crate::util::build_sbwt(&[contig.seq.clone()]), contig.name.clone(), bases));
                             });
                         }
 
-                        indexes.iter().for_each(|((sbwt, lcs), ref_contig)| {
+                        indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
                             queries.iter().for_each(|contig| {
                                 let mut run_lengths: Vec<FindResult> = Vec::new();
 
                                 // Get local alignments for forward strand
                                 let run_lengths_fwd = kbo::find(&contig.seq, &sbwt, &lcs, kbo::FindOpts::default());
                                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
+                                    let aln_len = x.end - x.start + 1;
+                                    let coverage = (aln_len as f64)/(*ref_bases as f64) * 100_f64;
+                                    let identity = (x.matches as f64)/(aln_len as f64) * 100_f64;
+
                                     FindResult {
                                         query_file: "query".to_string(),
                                         ref_file: "ref".to_string(),
@@ -131,8 +137,8 @@ pub fn Find(
                                         length: (x.end - x.start + 1) as u64,
                                         mismatches: x.mismatches as u64,
                                         gap_opens: x.gap_opens as u64,
-                                        identity: -1_f64,
-                                        coverage: -1_f64,
+                                        identity,
+                                        coverage,
                                         query_contig: contig.name.clone(),
                                         ref_contig: ref_contig.clone(),
                                     }
@@ -141,6 +147,9 @@ pub fn Find(
                                 // Add local alignments for reverse complement
                                 let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default());
                                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
+                                    let aln_len = x.end - x.start + 1;
+                                    let coverage = (aln_len as f64)/(*ref_bases as f64) * 100_f64;
+                                    let identity = (x.matches as f64)/(aln_len as f64) * 100_f64;
                                     FindResult {
                                         query_file: "query".to_string(),
                                         ref_file: "ref".to_string(),
@@ -150,8 +159,8 @@ pub fn Find(
                                         length: (x.end - x.start + 1) as u64,
                                         mismatches: x.mismatches as u64,
                                         gap_opens: x.gap_opens as u64,
-                                        identity: -1_f64,
-                                        coverage: -1_f64,
+                                        identity,
+                                        coverage,
                                         query_contig: contig.name.clone(),
                                         ref_contig: ref_contig.clone(),
                                     }
@@ -189,6 +198,8 @@ pub fn Find(
                     tbody {
                         {
                             res.read().iter().map(|row| {
+                                let identity_rounded: String = format!("{:.2}", row.identity);
+                                let coverage_rounded: String = format!("{:.2}", row.coverage);
                                 rsx! {
                                     tr {
                                         td { "{row.query_file}" }
@@ -199,8 +210,8 @@ pub fn Find(
                                         td { "{row.length}" }
                                         td { "{row.mismatches}" }
                                         td { "{row.gap_opens}" }
-                                        td { "{row.identity}" }
-                                        td { "{row.coverage}" }
+                                        td { "{identity_rounded}" }
+                                        td { "{coverage_rounded}" }
                                         td { "{row.query_contig}" }
                                         td { "{row.ref_contig}" }
                                     }
