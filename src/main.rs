@@ -75,18 +75,8 @@ enum KboMode {
     Map,
 }
 
-fn build_sbwt(file_contents: &[Vec<u8>]) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
-    let mut ref_data: Vec<Vec<u8>> = Vec::new();
-    file_contents.iter().for_each(|ref_file| {
-        let mut reader = needletail::parse_fastx_reader(ref_file.deref()).expect("valid fastX data");
-        while let Some(rec) = reader.next() {
-            let seqrec = rec.expect("Valid fastX record");
-            let _contig = seqrec.id();
-            let seq = seqrec.normalize(true);
-            ref_data.push(seq.to_vec());
-        }
-    });
-    kbo::index::build_sbwt_from_vecs(&ref_data, &Some(kbo::index::BuildOpts::default()))
+fn build_sbwt(ref_data: &[Vec<u8>]) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
+    kbo::index::build_sbwt_from_vecs(ref_data, &Some(kbo::index::BuildOpts::default()))
 }
 
 fn read_seq_data(file_contents: &Vec<u8>) -> Vec<(Vec<u8>, Vec<u8>)> {
@@ -118,8 +108,8 @@ fn Home() -> Element {
 
     let mut kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
-    let mut indexes: Vec<(sbwt::SbwtIndexVariant, sbwt::LcsArray)> = Vec::new();
     let mut queries: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
+    let mut refseqs: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
 
     rsx! {
         // Run mode selector
@@ -149,9 +139,10 @@ fn Home() -> Element {
             h2 { "Reference file" }
             FastaFileSelector { multiple: false, seq_data: ref_files }
             {
-                // Build the index immediately after data is selected
                 if ref_files.read().len() > 0 {
-                    indexes.push(build_sbwt(ref_files.read().as_ref()));
+                    ref_files.read().iter().for_each(|seq| {
+                        refseqs.extend(read_seq_data(seq));
+                    });
                 }
             }
         }
@@ -160,7 +151,6 @@ fn Home() -> Element {
             h2 { "Query file(s)" }
             FastaFileSelector { multiple: true, seq_data: query_files }
             {
-                // Read inputs
                 if query_files.read().len() > 0 {
                     query_files.read().iter().for_each(|query| {
                         queries.extend(read_seq_data(query));
@@ -181,12 +171,13 @@ fn Home() -> Element {
                         button {
                             onclick: move |_event| {
                                 if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                                    let index = build_sbwt(&[refseqs.iter().flat_map(|x| x.1.clone()).collect()]);
                                     queries.iter().for_each(|(contig, seq)| {
                                         // Get local alignments for forward strand
-                                        let mut run_lengths = kbo::find(seq, &indexes[0].0, &indexes[0].1, kbo::FindOpts::default());
+                                        let mut run_lengths = kbo::find(seq, &index.0, &index.1, kbo::FindOpts::default());
 
                                         // Add local alignments for reverse complement
-                                        run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &indexes[0].0, &indexes[0].1, kbo::FindOpts::default()));
+                                        run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
 
                                         // Sort by q.start
                                         run_lengths.sort_by_key(|x| x.start);
