@@ -117,23 +117,17 @@ pub fn Find(
 
                         indexes.iter().for_each(|((sbwt, lcs), ref_contig)| {
                             queries.iter().for_each(|contig| {
+                                let mut run_lengths: Vec<FindResult> = Vec::new();
+
                                 // Get local alignments for forward strand
-                                let mut run_lengths = kbo::find(&contig.seq, &sbwt, &lcs, kbo::FindOpts::default());
-
-                                // Add local alignments for reverse complement
-                                run_lengths.append(&mut kbo::find(&contig.seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default()));
-
-                                // Sort by q.start
-                                run_lengths.sort_by_key(|x| x.start);
-
-                                // Print results with query and ref name added
-                                run_lengths.iter().for_each(|x| {
-                                    let result = FindResult {
+                                let run_lengths_fwd = kbo::find(&contig.seq, &sbwt, &lcs, kbo::FindOpts::default());
+                                run_lengths.extend(run_lengths_fwd.iter().map(|x| {
+                                    FindResult {
                                         query_file: "query".to_string(),
                                         ref_file: "ref".to_string(),
                                         start: x.start as u64,
                                         end: x.end as u64,
-                                        strand: '/',
+                                        strand: '+',
                                         length: (x.end - x.start + 1) as u64,
                                         mismatches: x.mismatches as u64,
                                         gap_opens: x.gap_opens as u64,
@@ -141,9 +135,33 @@ pub fn Find(
                                         coverage: -1_f64,
                                         query_contig: contig.name.clone(),
                                         ref_contig: ref_contig.clone(),
-                                    };
-                                    res.write().push(result);
-                                });
+                                    }
+                                }));
+
+                                // Add local alignments for reverse complement
+                                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default());
+                                run_lengths.extend(run_lengths_rev.iter().map(|x| {
+                                    FindResult {
+                                        query_file: "query".to_string(),
+                                        ref_file: "ref".to_string(),
+                                        start: x.start as u64,
+                                        end: x.end as u64,
+                                        strand: '-',
+                                        length: (x.end - x.start + 1) as u64,
+                                        mismatches: x.mismatches as u64,
+                                        gap_opens: x.gap_opens as u64,
+                                        identity: -1_f64,
+                                        coverage: -1_f64,
+                                        query_contig: contig.name.clone(),
+                                        ref_contig: ref_contig.clone(),
+                                    }
+                                }));
+
+                                // Sort by q.start
+                                run_lengths.sort_by_key(|x| x.start);
+
+                                // Print results with query and ref name added
+                                res.write().extend(run_lengths);
                             });
                         });
                     }
