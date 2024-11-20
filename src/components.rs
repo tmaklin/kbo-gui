@@ -59,9 +59,9 @@ pub fn Find(
     queries: Vec<crate::util::ContigData>,
     refseqs: Vec<crate::util::ContigData>,
 ) -> Element {
-    let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String)>::new);
+    let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String, String)>::new);
 
-    let mut detailed: bool = false;
+    let mut detailed:Signal<bool> = use_signal(|| false);
 
     rsx! {
         div {
@@ -72,7 +72,7 @@ pub fn Find(
                 id: "detailed",
                 checked: false,
                 onchange: move |_| {
-                    detailed = !detailed;
+                    *detailed.write() = true;
                 }
             },
             "Detailed"
@@ -82,26 +82,26 @@ pub fn Find(
             button {
                 onclick: move |_event| {
                     if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                        let mut indexes: Vec<(sbwt::SbwtIndexVariant, sbwt::LcsArray)> = Vec::new();
+                        let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String)> = Vec::new();
 
-                        if !detailed {
+                        if !*detailed.read() {
 
                             // TODO Clone here should be made unnecessary
 
-                            indexes.push(crate::util::build_sbwt(&[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()]));
+                            indexes.push((crate::util::build_sbwt(&[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()]), "ref_file".to_string()));
                         } else {
                             refseqs.iter().for_each(|contig| {
-                                indexes.push(crate::util::build_sbwt(&[contig.seq.clone()]));
+                                indexes.push((crate::util::build_sbwt(&[contig.seq.clone()]), contig.name.clone()));
                             });
                         }
 
-                        indexes.iter().for_each(|index| {
+                        indexes.iter().for_each(|((sbwt, lcs), ref_contig)| {
                             queries.iter().for_each(|contig| {
                                 // Get local alignments for forward strand
-                                let mut run_lengths = kbo::find(&contig.seq, &index.0, &index.1, kbo::FindOpts::default());
+                                let mut run_lengths = kbo::find(&contig.seq, &sbwt, &lcs, kbo::FindOpts::default());
 
                                 // Add local alignments for reverse complement
-                                run_lengths.append(&mut kbo::find(&contig.seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
+                                run_lengths.append(&mut kbo::find(&contig.seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default()));
 
                                 // Sort by q.start
                                 run_lengths.sort_by_key(|x| x.start);
@@ -117,6 +117,7 @@ pub fn Find(
                                         x.mismatches.to_string(),
                                         x.gap_opens.to_string(),
                                         contig.name.clone(),
+                                        ref_contig.clone(),
                                     ));
                                 });
                             });
@@ -136,6 +137,7 @@ pub fn Find(
                             td { "length" }
                             td { "mismatches" }
                             td { "gap_opens" }
+                            td { "ref_contig" }
                             td { "query_contig" }
                         }
                     }
@@ -151,6 +153,7 @@ pub fn Find(
                                         td { "{row.4}" }
                                         td { "{row.5}" }
                                         td { "{row.6}" }
+                                        td { "{row.8}" }
                                         td { "{row.7}" }
                                     }
                                 }
