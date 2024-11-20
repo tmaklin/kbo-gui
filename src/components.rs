@@ -61,35 +61,64 @@ pub fn Find(
 ) -> Element {
     let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String)>::new);
 
+    let mut detailed: bool = false;
+
     rsx! {
+        div {
+            h2 { "Options" }
+            input {
+                r#type: "checkbox",
+                name: "detailed",
+                id: "detailed",
+                checked: false,
+                onchange: move |_| {
+                    detailed = !detailed;
+                }
+            },
+            "Detailed"
+        }
         div {
             h2 { "Result" }
             button {
                 onclick: move |_event| {
                     if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                        let index = crate::util::build_sbwt(&[refseqs.iter().flat_map(|x| x.1.clone()).collect()]);
-                        queries.iter().for_each(|(contig, seq)| {
-                            // Get local alignments for forward strand
-                            let mut run_lengths = kbo::find(seq, &index.0, &index.1, kbo::FindOpts::default());
+                        let mut indexes: Vec<(sbwt::SbwtIndexVariant, sbwt::LcsArray)> = Vec::new();
 
-                            // Add local alignments for reverse complement
-                            run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
+                        if !detailed {
 
-                            // Sort by q.start
-                            run_lengths.sort_by_key(|x| x.start);
+                            // TODO Clone here should be made unnecessary
 
-                            // Print results with query and ref name added
-                            run_lengths.iter().for_each(|x| {
-                                res.write().push((
-                                    "query".to_string(),
-                                    "ref".to_string(),
-                                    x.start.to_string(),
-                                    x.end.to_string(),
-                                    (x.end - x.start + 1).to_string(),
-                                    x.mismatches.to_string(),
-                                    x.gap_opens.to_string(),
-                                    std::str::from_utf8(contig).expect("UTF-8").to_string(),
-                                ));
+                            indexes.push(crate::util::build_sbwt(&[refseqs.iter().flat_map(|x| x.1.clone()).collect()]));
+                        } else {
+                            refseqs.iter().for_each(|refseq| {
+                                indexes.push(crate::util::build_sbwt(&[refseq.1.clone()]));
+                            });
+                        }
+
+                        indexes.iter().for_each(|index| {
+                            queries.iter().for_each(|(contig, seq)| {
+                                // Get local alignments for forward strand
+                                let mut run_lengths = kbo::find(seq, &index.0, &index.1, kbo::FindOpts::default());
+
+                                // Add local alignments for reverse complement
+                                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
+
+                                // Sort by q.start
+                                run_lengths.sort_by_key(|x| x.start);
+
+                                // Print results with query and ref name added
+                                run_lengths.iter().for_each(|x| {
+                                    res.write().push((
+                                        "query".to_string(),
+                                        "ref".to_string(),
+                                        x.start.to_string(),
+                                        x.end.to_string(),
+                                        (x.end - x.start + 1).to_string(),
+                                        x.mismatches.to_string(),
+                                        x.gap_opens.to_string(),
+                                        std::str::from_utf8(contig).expect("UTF-8").to_string(),
+                                    ));
+                                });
                             });
                         });
                     }
