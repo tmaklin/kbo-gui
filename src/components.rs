@@ -72,7 +72,8 @@ pub fn Find(
                 id: "detailed",
                 checked: false,
                 onchange: move |_| {
-                    *detailed.write() = true;
+                    let old: bool = *detailed.read();
+                    *detailed.write() = !old;
                 }
             },
             "Detailed"
