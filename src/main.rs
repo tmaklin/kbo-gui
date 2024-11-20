@@ -20,42 +20,6 @@ use dioxus_logger::tracing::{info, Level};
 
 use needletail::Sequence;
 
-// Reads all sequence data from a fastX file
-fn read_fastx_data(
-    contents: &[u8],
-) -> Vec<Vec<u8>> {
-    let mut seq_data: Vec<Vec<u8>> = Vec::new();
-    let mut reader = needletail::parse_fastx_reader(contents).unwrap_or_else(|_| panic!("Expected valid fastX data"));
-    loop {
-    let rec = reader.next();
-    match rec {
-        Some(Ok(seqrec)) => {
-        seq_data.push(seqrec.normalize(true).as_ref().to_vec());
-        },
-        _ => break
-    }
-    }
-    seq_data
-}
-
-// Reads all sequence data from a fastX file
-fn read_fastx_file(
-    file: &str,
-) -> Vec<Vec<u8>> {
-    let mut seq_data: Vec<Vec<u8>> = Vec::new();
-    let mut reader = needletail::parse_fastx_file(file).unwrap_or_else(|_| panic!("Expected valid fastX file at {}", file));
-    loop {
-    let rec = reader.next();
-    match rec {
-        Some(Ok(seqrec)) => {
-        seq_data.push(seqrec.normalize(true).as_ref().to_vec());
-        },
-        _ => break
-    }
-    }
-    seq_data
-}
-
 #[derive(Clone, Routable, Debug, PartialEq)]
 enum Route {
     #[route("/")]
