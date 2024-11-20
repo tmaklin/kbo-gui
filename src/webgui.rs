@@ -27,8 +27,8 @@ pub fn Kbo() -> Element {
 
     let mut kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
-    let mut queries: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
-    let mut refseqs: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
+    let mut queries: Vec<crate::util::ContigData> = Vec::new();
+    let mut refseqs: Vec<crate::util::ContigData> = Vec::new();
 
     rsx! {
         // Run mode selector

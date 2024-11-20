@@ -56,8 +56,8 @@ pub fn Map() -> Element {
 pub fn Find(
     ref_files: Signal<Vec<Vec<u8>>>,
     query_files: Signal<Vec<Vec<u8>>>,
-    queries: Vec<(Vec<u8>, Vec<u8>)>,
-    refseqs: Vec<(Vec<u8>, Vec<u8>)>,
+    queries: Vec<crate::util::ContigData>,
+    refseqs: Vec<crate::util::ContigData>,
 ) -> Element {
     let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String)>::new);
 
@@ -88,20 +88,20 @@ pub fn Find(
 
                             // TODO Clone here should be made unnecessary
 
-                            indexes.push(crate::util::build_sbwt(&[refseqs.iter().flat_map(|x| x.1.clone()).collect()]));
+                            indexes.push(crate::util::build_sbwt(&[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()]));
                         } else {
-                            refseqs.iter().for_each(|refseq| {
-                                indexes.push(crate::util::build_sbwt(&[refseq.1.clone()]));
+                            refseqs.iter().for_each(|contig| {
+                                indexes.push(crate::util::build_sbwt(&[contig.seq.clone()]));
                             });
                         }
 
                         indexes.iter().for_each(|index| {
-                            queries.iter().for_each(|(contig, seq)| {
+                            queries.iter().for_each(|contig| {
                                 // Get local alignments for forward strand
-                                let mut run_lengths = kbo::find(seq, &index.0, &index.1, kbo::FindOpts::default());
+                                let mut run_lengths = kbo::find(&contig.seq, &index.0, &index.1, kbo::FindOpts::default());
 
                                 // Add local alignments for reverse complement
-                                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
+                                run_lengths.append(&mut kbo::find(&contig.seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
 
                                 // Sort by q.start
                                 run_lengths.sort_by_key(|x| x.start);
@@ -116,7 +116,7 @@ pub fn Find(
                                         (x.end - x.start + 1).to_string(),
                                         x.mismatches.to_string(),
                                         x.gap_opens.to_string(),
-                                        std::str::from_utf8(contig).expect("UTF-8").to_string(),
+                                        contig.name.clone(),
                                     ));
                                 });
                             });

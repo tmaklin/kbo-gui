@@ -15,18 +15,28 @@ use std::ops::Deref;
 
 use needletail::Sequence;
 
+#[derive(Clone, PartialEq)]
+pub struct ContigData {
+    pub name: String,
+    pub seq: Vec<u8>,
+}
+
 pub fn build_sbwt(ref_data: &[Vec<u8>]) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
     kbo::index::build_sbwt_from_vecs(ref_data, &Some(kbo::index::BuildOpts::default()))
 }
 
-pub fn read_seq_data(file_contents: &Vec<u8>) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let mut seq_data: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
+pub fn read_seq_data(file_contents: &Vec<u8>) -> Vec<ContigData> {
+    let mut seq_data: Vec<ContigData> = Vec::new();
     let mut reader = needletail::parse_fastx_reader(file_contents.deref()).expect("valid fastX data");
     while let Some(rec) = reader.next() {
         let seqrec = rec.expect("Valid fastX record");
         let contig = seqrec.id();
         let seq = seqrec.normalize(true);
-        seq_data.push((contig.to_vec(), seq.to_vec()));
+        seq_data.push(
+            ContigData {
+                name: std::str::from_utf8(contig).expect("UTF-8").to_string(),
+                seq: seq.to_vec(),
+            });
     }
     seq_data
 }
