@@ -68,6 +68,13 @@ fn FastaFileSelector(
     }
 }
 
+#[derive(Default, PartialEq)]
+enum KboMode {
+    #[default]
+    Find,
+    Map,
+}
+
 fn build_sbwt(file_contents: &[Vec<u8>]) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
     let mut ref_data: Vec<Vec<u8>> = Vec::new();
     file_contents.iter().for_each(|ref_file| {
@@ -95,15 +102,49 @@ fn read_seq_data(file_contents: &Vec<u8>) -> Vec<(Vec<u8>, Vec<u8>)> {
 }
 
 #[component]
+fn Map() -> Element {
+    rsx! {
+        div {
+            { "Map is not yet implemented; select \"Mode: Find\" to continue." }
+        }
+    }
+}
+
+#[component]
 fn Home() -> Element {
     let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
     let query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
     let mut res = use_signal(Vec::<String>::new);
 
+    let mut kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
+
     let mut indexes: Vec<(sbwt::SbwtIndexVariant, sbwt::LcsArray)> = Vec::new();
     let mut queries: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
 
     rsx! {
+        // Run mode selector
+        // supported: see KboMode
+        div {
+            h2 { "Mode" }
+            input {
+                r#type: "radio",
+                name: "kbo-mode",
+                value: "find",
+                checked: true,
+                onchange: move |_| {
+                    *kbo_mode.write() = KboMode::Find;
+                },
+            }
+            input {
+                r#type: "radio",
+                name: "kbo-mode",
+                value: "map",
+                onchange: move |_| {
+                    *kbo_mode.write() = KboMode::Map;
+                },
+            }
+        }
+
         div {
             h2 { "Reference file" }
             FastaFileSelector { multiple: false, seq_data: ref_files }
@@ -128,41 +169,51 @@ fn Home() -> Element {
             }
         }
 
-        div {
-            h2 { "Result" }
-            button {
-                onclick: move |_event| {
-                    if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                        queries.iter().for_each(|(contig, seq)| {
-                            // Get local alignments for forward strand
-                            let mut run_lengths = kbo::find(seq, &indexes[0].0, &indexes[0].1, kbo::FindOpts::default());
+        {
+            if *kbo_mode.read() == KboMode::Map {
+                rsx! {
+                    Map {}
+                }
+            } else {
+                rsx! {
+                    div {
+                        h2 { "Result" }
+                        button {
+                            onclick: move |_event| {
+                                if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                                    queries.iter().for_each(|(contig, seq)| {
+                                        // Get local alignments for forward strand
+                                        let mut run_lengths = kbo::find(seq, &indexes[0].0, &indexes[0].1, kbo::FindOpts::default());
 
-                            // Add local alignments for reverse complement
-                            run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &indexes[0].0, &indexes[0].1, kbo::FindOpts::default()));
+                                        // Add local alignments for reverse complement
+                                        run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &indexes[0].0, &indexes[0].1, kbo::FindOpts::default()));
 
-                            // Sort by q.start
-                            run_lengths.sort_by_key(|x| x.start);
+                                        // Sort by q.start
+                                        run_lengths.sort_by_key(|x| x.start);
 
-                            // Print results with query and ref name added
-                            run_lengths.iter().for_each(|x| {
-                                res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                                                         "query", "ref",
-                                                         x.start,
-                                                         x.end,
-                                                         x.end - x.start + 1,
-                                                         x.mismatches,
-                                                         x.gap_opens,
-                                                         std::str::from_utf8(contig).expect("UTF-8")));
-                            });
-                        });
+                                        // Print results with query and ref name added
+                                        run_lengths.iter().for_each(|x| {
+                                            res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                                                                     "query", "ref",
+                                                                     x.start,
+                                                                     x.end,
+                                                                     x.end - x.start + 1,
+                                                                     x.mismatches,
+                                                                     x.gap_opens,
+                                                                     std::str::from_utf8(contig).expect("UTF-8")));
+                                        });
+                                    });
+                                }
+                            },
+                            "run!",
+                        }
+                        for result in res() {
+                            // Notice the body of this for loop is rsx code, not an expression
+                            div {
+                                { result }
+                            }
+                        }
                     }
-                },
-                "run!",
-            }
-            for result in res() {
-                // Notice the body of this for loop is rsx code, not an expression
-                div {
-                    { result }
                 }
             }
         }
