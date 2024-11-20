@@ -101,10 +101,61 @@ fn Map() -> Element {
 }
 
 #[component]
+fn Find(
+    ref_files: Signal<Vec<Vec<u8>>>,
+    query_files: Signal<Vec<Vec<u8>>>,
+    queries: Vec<(Vec<u8>, Vec<u8>)>,
+    refseqs: Vec<(Vec<u8>, Vec<u8>)>,
+) -> Element {
+    let mut res = use_signal(Vec::<String>::new);
+
+    rsx! {
+        div {
+            h2 { "Result" }
+            button {
+                onclick: move |_event| {
+                    if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                        let index = build_sbwt(&[refseqs.iter().flat_map(|x| x.1.clone()).collect()]);
+                        queries.iter().for_each(|(contig, seq)| {
+                            // Get local alignments for forward strand
+                            let mut run_lengths = kbo::find(seq, &index.0, &index.1, kbo::FindOpts::default());
+
+                            // Add local alignments for reverse complement
+                            run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
+
+                            // Sort by q.start
+                            run_lengths.sort_by_key(|x| x.start);
+
+                            // Print results with query and ref name added
+                            run_lengths.iter().for_each(|x| {
+                                res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                                                         "query", "ref",
+                                                         x.start,
+                                                         x.end,
+                                                         x.end - x.start + 1,
+                                                         x.mismatches,
+                                                         x.gap_opens,
+                                                         std::str::from_utf8(contig).expect("UTF-8")));
+                            });
+                        });
+                    }
+                },
+                "run!",
+            }
+            for result in res() {
+                // Notice the body of this for loop is rsx code, not an expression
+                div {
+                    { result }
+                }
+            }
+        }
+    }
+}
+
+#[component]
 fn Home() -> Element {
     let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
     let query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
-    let mut res = use_signal(Vec::<String>::new);
 
     let mut kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
@@ -164,46 +215,19 @@ fn Home() -> Element {
                 rsx! {
                     Map {}
                 }
+            } else if *kbo_mode.read() == KboMode::Find {
+                rsx! {
+                    Find {
+                        ref_files,
+                        query_files,
+                        queries,
+                        refseqs,
+                    }
+                }
             } else {
                 rsx! {
                     div {
-                        h2 { "Result" }
-                        button {
-                            onclick: move |_event| {
-                                if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                                    let index = build_sbwt(&[refseqs.iter().flat_map(|x| x.1.clone()).collect()]);
-                                    queries.iter().for_each(|(contig, seq)| {
-                                        // Get local alignments for forward strand
-                                        let mut run_lengths = kbo::find(seq, &index.0, &index.1, kbo::FindOpts::default());
-
-                                        // Add local alignments for reverse complement
-                                        run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &index.0, &index.1, kbo::FindOpts::default()));
-
-                                        // Sort by q.start
-                                        run_lengths.sort_by_key(|x| x.start);
-
-                                        // Print results with query and ref name added
-                                        run_lengths.iter().for_each(|x| {
-                                            res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                                                                     "query", "ref",
-                                                                     x.start,
-                                                                     x.end,
-                                                                     x.end - x.start + 1,
-                                                                     x.mismatches,
-                                                                     x.gap_opens,
-                                                                     std::str::from_utf8(contig).expect("UTF-8")));
-                                        });
-                                    });
-                                }
-                            },
-                            "run!",
-                        }
-                        for result in res() {
-                            // Notice the body of this for loop is rsx code, not an expression
-                            div {
-                                { result }
-                            }
-                        }
+                        { "Unknown mode; check your selection." }
                     }
                 }
             }
