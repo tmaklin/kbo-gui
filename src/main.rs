@@ -68,17 +68,38 @@ fn FastaFileSelector(
     }
 }
 
+fn build_sbwt(file_contents: &[Vec<u8>]) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
+    let mut ref_data: Vec<Vec<u8>> = Vec::new();
+    file_contents.iter().for_each(|ref_file| {
+        let mut reader = needletail::parse_fastx_reader(ref_file.deref()).expect("valid fastX data");
+        while let Some(rec) = reader.next() {
+            let seqrec = rec.expect("Valid fastX record");
+            let _contig = seqrec.id();
+            let seq = seqrec.normalize(true);
+            ref_data.push(seq.to_vec());
+        }
+    });
+    kbo::index::build_sbwt_from_vecs(&ref_data, &Some(kbo::index::BuildOpts::default()))
+}
+
 #[component]
 fn Home() -> Element {
     let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
     let query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
     let mut res = use_signal(Vec::<String>::new);
 
+    let mut indexes: Vec<(sbwt::SbwtIndexVariant, sbwt::LcsArray)> = Vec::new();
 
     rsx! {
         div {
             h2 { "Reference file" }
             FastaFileSelector { multiple: false, seq_data: ref_files }
+            {
+                // Build the index immediately after data is uploaded
+                if ref_files.read().len() > 0 {
+                    indexes.push(build_sbwt(ref_files.read().as_ref()));
+                }
+            }
         }
 
         div {
@@ -91,18 +112,6 @@ fn Home() -> Element {
             button {
                 onclick: move |_event| {
                     if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                        let mut ref_data: Vec<Vec<u8>> = Vec::new();
-                        ref_files.read().iter().for_each(|ref_file| {
-                            let mut reader = needletail::parse_fastx_reader(ref_file.deref()).expect("valid fastX data");
-                            while let Some(rec) = reader.next() {
-                                let seqrec = rec.expect("Valid fastX record");
-                                let _contig = seqrec.id();
-                                let seq = seqrec.normalize(true);
-                                ref_data.push(seq.to_vec());
-                            }
-                        });
-
-                        let (sbwt, lcs) = kbo::index::build_sbwt_from_vecs(&ref_data, &Some(kbo::index::BuildOpts::default()));
 
                         query_files.read().iter().for_each(|file| {
                             let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
@@ -112,10 +121,10 @@ fn Home() -> Element {
                                 let seq = seqrec.normalize(true);
 
                                 // Get local alignments for forward strand
-                                let mut run_lengths = kbo::find(&seq, &sbwt, &lcs, kbo::FindOpts::default());
+                                let mut run_lengths = kbo::find(&seq, &indexes[0].0, &indexes[0].1, kbo::FindOpts::default());
 
                                 // Add local alignments for reverse _complement
-                                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default()));
+                                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &indexes[0].0, &indexes[0].1, kbo::FindOpts::default()));
 
                                 // Sort by q.start
                                 run_lengths.sort_by_key(|x| x.start);
