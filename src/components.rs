@@ -12,7 +12,56 @@
 // at your option.
 //
 use dioxus::prelude::*;
+use crate::dioxus_sortable::*;
+
 use needletail::Sequence;
+
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+enum FindResultField {
+    Query,
+    Ref,
+    #[default]
+    QStart,
+    QEnd,
+    Strand,
+    Length,
+    Mismatches,
+    GapOpens,
+    Identity,
+    Coverage,
+    QContig,
+    RContig,
+}
+
+impl PartialOrdBy<FindResult> for FindResultField {
+    fn partial_cmp_by(&self, a: &FindResult, b: &FindResult) -> Option<std::cmp::Ordering> {
+        match self {
+            FindResultField::Query => a.query_file.partial_cmp(&b.query_file),
+            FindResultField::Ref => a.ref_file.partial_cmp(&b.ref_file),
+            FindResultField::QStart => a.start.partial_cmp(&b.start),
+            FindResultField::QEnd => a.end.partial_cmp(&b.end),
+            FindResultField::Strand => a.strand.partial_cmp(&b.strand),
+            FindResultField::Length => a.length.partial_cmp(&b.length),
+            FindResultField::Mismatches => a.mismatches.partial_cmp(&b.mismatches),
+            FindResultField::GapOpens => a.gap_opens.partial_cmp(&b.gap_opens),
+            FindResultField::Identity => a.identity.partial_cmp(&b.identity),
+            FindResultField::Coverage => a.coverage.partial_cmp(&b.coverage),
+            FindResultField::QContig => a.query_contig.partial_cmp(&b.query_contig),
+            FindResultField::RContig => a.ref_contig.partial_cmp(&b.ref_contig),
+        }
+    }
+}
+
+/// This trait decides how fields (columns) may be sorted
+impl Sortable for FindResultField {
+    fn sort_by(&self) -> Option<SortBy> {
+        SortBy::increasing_or_decreasing()
+    }
+
+    fn null_handling(&self) -> NullHandling {
+        NullHandling::Last
+    }
+}
 
 struct FindResult {
     pub query_file: String,
@@ -81,6 +130,8 @@ pub fn Find(
     // let mut min_len:Signal<u64> = use_signal(|| 100_u64);
     // let mut max_gap_len:Signal<u64> = use_signal(|| 0_u64);
     // let mut max_error_prob:Signal<f64> = use_signal(|| 0.0000001_f64);
+
+    let mut sorter = use_sorter::<FindResultField>();
 
     rsx! {
         div {
