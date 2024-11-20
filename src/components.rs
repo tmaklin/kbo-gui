@@ -131,7 +131,7 @@ pub fn Find(
     // let mut max_gap_len:Signal<u64> = use_signal(|| 0_u64);
     // let mut max_error_prob:Signal<f64> = use_signal(|| 0.0000001_f64);
 
-    let mut sorter = use_sorter::<FindResultField>();
+    let sorter = use_sorter::<FindResultField>();
 
     rsx! {
         div {
@@ -222,28 +222,28 @@ pub fn Find(
 
                                 // Print results with query and ref name added
                                 res.write().extend(run_lengths);
+
                             });
                         });
                     }
                 },
                 "run!",
             }
-            if res.read().len() > 0 {
                 table {
                     thead {
                         tr {
-                            td { "query" }
-                            td { "ref" }
-                            td { "q.start" }
-                            td { "q.end" }
-                            td { "strand" }
-                            td { "length" }
-                            td { "mismatches" }
-                            td { "gap_opens" }
-                            td { "identity" }
-                            td { "coverage" }
-                            td { "query.contig" }
-                            td { "ref.contig" }
+                            Th { sorter: sorter, field: FindResultField::Query, "query" }
+                            Th { sorter: sorter, field: FindResultField::Ref, "ref" }
+                            Th { sorter: sorter, field: FindResultField::QStart, "q.start" }
+                            Th { sorter: sorter, field: FindResultField::QEnd, "q.end" }
+                            Th { sorter: sorter, field: FindResultField::Strand, "strand" }
+                            Th { sorter: sorter, field: FindResultField::Length, "length" }
+                            Th { sorter: sorter, field: FindResultField::Mismatches, "mismatches" }
+                            Th { sorter: sorter, field: FindResultField::GapOpens, "gap_opens" }
+                            Th { sorter: sorter, field: FindResultField::Identity, "identity" }
+                            Th { sorter: sorter, field: FindResultField::Coverage, "coverage" }
+                            Th { sorter: sorter, field: FindResultField::QContig, "query.contig" }
+                            Th { sorter: sorter, field: FindResultField::RContig, "ref.contig" }
                         }
                     }
                     tbody {
@@ -270,7 +270,6 @@ pub fn Find(
                             })
                         }
                     }
-                }
             }
         }
     }
