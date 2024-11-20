@@ -107,7 +107,7 @@ fn Find(
     queries: Vec<(Vec<u8>, Vec<u8>)>,
     refseqs: Vec<(Vec<u8>, Vec<u8>)>,
 ) -> Element {
-    let mut res = use_signal(Vec::<String>::new);
+    let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String)>::new);
 
     rsx! {
         div {
@@ -128,24 +128,54 @@ fn Find(
 
                             // Print results with query and ref name added
                             run_lengths.iter().for_each(|x| {
-                                res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                                                         "query", "ref",
-                                                         x.start,
-                                                         x.end,
-                                                         x.end - x.start + 1,
-                                                         x.mismatches,
-                                                         x.gap_opens,
-                                                         std::str::from_utf8(contig).expect("UTF-8")));
+                                res.write().push((
+                                    "query".to_string(),
+                                    "ref".to_string(),
+                                    x.start.to_string(),
+                                    x.end.to_string(),
+                                    (x.end - x.start + 1).to_string(),
+                                    x.mismatches.to_string(),
+                                    x.gap_opens.to_string(),
+                                    std::str::from_utf8(contig).expect("UTF-8").to_string(),
+                                ));
                             });
                         });
                     }
                 },
                 "run!",
             }
-            for result in res() {
-                // Notice the body of this for loop is rsx code, not an expression
-                div {
-                    { result }
+            if res.read().len() > 0 {
+                table {
+                    thead {
+                        tr {
+                            td { "query" }
+                            td { "ref" }
+                            td { "q.start" }
+                            td { "q.end" }
+                            td { "length" }
+                            td { "mismatches" }
+                            td { "gap_opens" }
+                            td { "query_contig" }
+                        }
+                    }
+                    tbody {
+                        {
+                            res.read().iter().map(|row| {
+                                rsx! {
+                                    tr {
+                                        td { "{row.0}" }
+                                        td { "{row.1}" }
+                                        td { "{row.2}" }
+                                        td { "{row.3}" }
+                                        td { "{row.4}" }
+                                        td { "{row.5}" }
+                                        td { "{row.6}" }
+                                        td { "{row.7}" }
+                                    }
+                                }
+                            })
+                        }
+                    }
                 }
             }
         }
