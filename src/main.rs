@@ -123,62 +123,62 @@ fn Home() -> Element {
         }
 
         div {
-        h2 { "Result" }
-        button {
-        onclick: move |_event| {
-            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                let mut ref_data: Vec<Vec<u8>> = Vec::new();
-                ref_files.read().iter().for_each(|ref_file| {
-                    let mut reader = needletail::parse_fastx_reader(ref_file.deref()).expect("valid fastX data");
-                    while let Some(rec) = reader.next() {
-                        let seqrec = rec.expect("Valid fastX record");
-                        let _contig = seqrec.id();
-                        let seq = seqrec.normalize(true);
-                        ref_data.push(seq.to_vec());
+            h2 { "Result" }
+            button {
+                onclick: move |_event| {
+                    if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                        let mut ref_data: Vec<Vec<u8>> = Vec::new();
+                        ref_files.read().iter().for_each(|ref_file| {
+                            let mut reader = needletail::parse_fastx_reader(ref_file.deref()).expect("valid fastX data");
+                            while let Some(rec) = reader.next() {
+                                let seqrec = rec.expect("Valid fastX record");
+                                let _contig = seqrec.id();
+                                let seq = seqrec.normalize(true);
+                                ref_data.push(seq.to_vec());
+                            }
+                        });
+
+                        let (sbwt, lcs) = kbo::index::build_sbwt_from_vecs(&ref_data, &Some(kbo::index::BuildOpts::default()));
+
+                        query_files.read().iter().for_each(|file| {
+                            let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
+                            while let Some(rec) = reader.next() {
+                                let seqrec = rec.expect("Valid fastX record");
+                                let contig = seqrec.id();
+                                let seq = seqrec.normalize(true);
+
+                                // Get local alignments for forward strand
+                                let mut run_lengths = kbo::find(&seq, &sbwt, &lcs, kbo::FindOpts::default());
+
+                                // Add local alignments for reverse _complement
+                                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default()));
+
+                                // Sort by q.start
+                                run_lengths.sort_by_key(|x| x.start);
+
+                                // Print results with query and ref name added
+                                run_lengths.iter().for_each(|x| {
+                                    res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                                                             "query", "ref",
+                                                             x.start,
+                                                             x.end,
+                                                             x.end - x.start + 1,
+                                                             x.mismatches,
+                                                             x.gap_opens,
+                                                             std::str::from_utf8(contig).expect("UTF-8")));
+                                });
+                            }
+                        });
                     }
-                });
-
-                let (sbwt, lcs) = kbo::index::build_sbwt_from_vecs(&ref_data, &Some(kbo::index::BuildOpts::default()));
-
-                query_files.read().iter().for_each(|file| {
-                let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
-                while let Some(rec) = reader.next() {
-                let seqrec = rec.expect("Valid fastX record");
-                let contig = seqrec.id();
-                let seq = seqrec.normalize(true);
-
-                // Get local alignments for forward strand
-                let mut run_lengths = kbo::find(&seq, &sbwt, &lcs, kbo::FindOpts::default());
-
-                // Add local alignments for reverse _complement
-                run_lengths.append(&mut kbo::find(&seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default()));
-
-                // Sort by q.start
-                run_lengths.sort_by_key(|x| x.start);
-
-                // Print results with query and ref name added
-                run_lengths.iter().for_each(|x| {
-                    res.write().push(format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                                             "query", "ref",
-                                             x.start,
-                                             x.end,
-                                             x.end - x.start + 1,
-                                             x.mismatches,
-                                             x.gap_opens,
-                                             std::str::from_utf8(contig).expect("UTF-8")));
-                });
-                }
-            });
+                },
+                "run!",
             }
-        },
-        "run!",
+            for result in res() {
+                // Notice the body of this for loop is rsx code, not an expression
+                div {
+                    { result }
+                }
+            }
         }
-        for result in res() {
-        // Notice the body of this for loop is rsx code, not an expression
-        div {
-            { result }
-        }
-        }
-    }
     }
 }
