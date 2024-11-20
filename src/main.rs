@@ -76,70 +76,71 @@ fn App() -> Element {
 }
 
 #[component]
+fn FastaFileSelector(
+    multiple: bool,
+    seq_data: Signal<Vec<Vec<u8>>>) -> Element {
+    rsx! {
+        input {
+            // tell the input to pick a file
+            r#type: "file",
+            // list the accepted extensions
+            accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
+            // pick multiple files
+            multiple: multiple,
+            onchange: move |evt| {
+                async move {
+                    if let Some(file_engine) = &evt.files() {
+                        let files = file_engine.files();
+                        for file_name in &files {
+                            if let Some(file) = file_engine.read_file(file_name).await
+                            {
+                                seq_data.write().push(file.to_vec());
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    }
+}
+
+#[component]
 fn Home() -> Element {
-    let mut ref_data: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
-    let mut query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
+    let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
+    let query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
     let mut res = use_signal(Vec::<String>::new);
 
 
     rsx! {
-    div {
-        h2 { "Reference file" }
-            input {
-        // tell the input to pick a file
-        r#type: "file",
-        // list the accepted extensions
-        accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-        // pick multiple files
-        multiple: false,
-        onchange: move |evt| {
-            async move {
-            if let Some(file_engine) = &evt.files() {
-                let files = file_engine.files();
-                for file_name in &files {
-                if let Some(file) = file_engine.read_file(file_name).await
-                {
-                    ref_data.write().append(&mut read_fastx_data(&file));
-                }
-                }
-            }
-            }
-        },
-            }
-    }
+        div {
+            h2 { "Reference file" }
+            FastaFileSelector { multiple: false, seq_data: ref_files }
+        }
 
-    div {
-        h2 { "Query file(s)" }
-            input {
-        // tell the input to pick a file
-        r#type: "file",
-        // list the accepted extensions
-        accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-        // pick multiple files
-        multiple: true,
-        onchange: move |evt| {
-            async move {
-            if let Some(file_engine) = &evt.files() {
-                let files = file_engine.files();
-                for file_name in &files {
-                if let Some(file) = file_engine.read_file(file_name).await
-                {
-                    query_files.write().push(file.to_vec());
-                }
-                }
-            }
-            }
-        },
-            }
-    }
+        div {
+            h2 { "Query file(s)" }
+            FastaFileSelector { multiple: true, seq_data: query_files }
+        }
 
         div {
         h2 { "Result" }
         button {
-        onclick: move |event| {
-            if ref_data.read().len() > 0 && query_files.read().len() > 0 {
-            let (sbwt, lcs) = kbo::index::build_sbwt_from_vecs(&ref_data.read(), &Some(kbo::index::BuildOpts::default()));
-            query_files.read().iter().for_each(|file| {
+        onclick: move |_event| {
+            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                let mut ref_data: Vec<Vec<u8>> = Vec::new();
+                ref_files.read().iter().for_each(|ref_file| {
+                    let mut reader = needletail::parse_fastx_reader(ref_file.deref()).expect("valid fastX data");
+                    while let Some(rec) = reader.next() {
+                        let seqrec = rec.expect("Valid fastX record");
+                        let _contig = seqrec.id();
+                        let seq = seqrec.normalize(true);
+                        ref_data.push(seq.to_vec());
+                    }
+                });
+
+                let (sbwt, lcs) = kbo::index::build_sbwt_from_vecs(&ref_data, &Some(kbo::index::BuildOpts::default()));
+
+                query_files.read().iter().for_each(|file| {
                 let mut reader = needletail::parse_fastx_reader(file.deref()).expect("valid fastX data");
                 while let Some(rec) = reader.next() {
                 let seqrec = rec.expect("Valid fastX record");
