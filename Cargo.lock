@@ -1869,6 +1869,7 @@ dependencies = [
  "kbo",
  "manganis",
  "needletail",
+ "sbwt",
  "tokio",
 ]
 
