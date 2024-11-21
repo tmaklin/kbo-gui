@@ -170,6 +170,34 @@ fn SortableFindResultTable(
     }
 }
 
+fn format_find_result(
+    result: &kbo::format::RLE,
+    query_contig: String,
+    ref_contig: String,
+    ref_bases: u64,
+    strand: char,
+) -> FindResult {
+    let aln_len = result.end - result.start + 1;
+    let coverage = (aln_len as f64)/(ref_bases as f64) * 100_f64;
+    let identity = (result.matches as f64)/(aln_len as f64) * 100_f64;
+
+    FindResult {
+        query_file: "query".to_string(),
+        ref_file: "ref".to_string(),
+        start: result.start as u64,
+        end: result.end as u64,
+        strand,
+        length: (result.end - result.start + 1) as u64,
+        mismatches: result.mismatches as u64,
+        gap_opens: result.gap_opens as u64,
+        identity,
+        coverage,
+        query_contig,
+        ref_contig,
+    }
+
+}
+
 #[component]
 pub fn Find(
     ref_files: Signal<Vec<Vec<u8>>>,
@@ -227,46 +255,13 @@ pub fn Find(
                                 // Get local alignments for forward strand
                                 let run_lengths_fwd = kbo::find(&contig.seq, &sbwt, &lcs, kbo::FindOpts::default());
                                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                                    let aln_len = x.end - x.start + 1;
-                                    let coverage = (aln_len as f64)/(*ref_bases as f64) * 100_f64;
-                                    let identity = (x.matches as f64)/(aln_len as f64) * 100_f64;
-
-                                    FindResult {
-                                        query_file: "query".to_string(),
-                                        ref_file: "ref".to_string(),
-                                        start: x.start as u64,
-                                        end: x.end as u64,
-                                        strand: '+',
-                                        length: (x.end - x.start + 1) as u64,
-                                        mismatches: x.mismatches as u64,
-                                        gap_opens: x.gap_opens as u64,
-                                        identity,
-                                        coverage,
-                                        query_contig: contig.name.clone(),
-                                        ref_contig: ref_contig.clone(),
-                                    }
+                                    format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
                                 }));
 
                                 // Add local alignments for reverse complement
                                 let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default());
                                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                                    let aln_len = x.end - x.start + 1;
-                                    let coverage = (aln_len as f64)/(*ref_bases as f64) * 100_f64;
-                                    let identity = (x.matches as f64)/(aln_len as f64) * 100_f64;
-                                    FindResult {
-                                        query_file: "query".to_string(),
-                                        ref_file: "ref".to_string(),
-                                        start: x.start as u64,
-                                        end: x.end as u64,
-                                        strand: '-',
-                                        length: (x.end - x.start + 1) as u64,
-                                        mismatches: x.mismatches as u64,
-                                        gap_opens: x.gap_opens as u64,
-                                        identity,
-                                        coverage,
-                                        query_contig: contig.name.clone(),
-                                        ref_contig: ref_contig.clone(),
-                                    }
+                                    format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
                                 }));
 
                                 // Print results with query and ref name added
