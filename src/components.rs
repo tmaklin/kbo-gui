@@ -205,16 +205,65 @@ pub fn Find(
     queries: Vec<crate::util::ContigData>,
     refseqs: Vec<crate::util::ContigData>,
 ) -> Element {
-    // let mut res = use_signal(Vec::<(String, String, String, String, String, String, String, String, String)>::new);
+
     let mut res = use_signal(Vec::<FindResult>::new);
 
-    let mut detailed:Signal<bool> = use_signal(|| false);
-    let mut min_len:Signal<u64> = use_signal(|| 100_u64);
-    let mut max_gap_len:Signal<u64> = use_signal(|| 0_u64);
-    let mut max_error_prob:Signal<f64> = use_signal(|| 0.0000001_f64);
+    // Options for running queries
+    let mut detailed: Signal<bool> = use_signal(|| false);
+    let mut min_len: Signal<u64> = use_signal(|| 100_u64);
+    let mut max_gap_len: Signal<u64> = use_signal(|| 0_u64);
+    let mut max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
+
+    // Options for indexing reference
+    let mut kmer_size: Signal<u32> = use_signal(|| 31);
+    let mut dedup_batches: Signal<bool> = use_signal(|| true);
+    let mut prefix_precalc: Signal<u32> = use_signal(|| 8);
 
     rsx! {
         div {
+            h2 { "SBWT options" }
+            div {
+                input {
+                    r#type: "number",
+                    id: "kmer_size",
+                    name: "kmer_size",
+                    min: "1",
+                    value: "31",
+                    onchange: move |event| {
+                        let new = event.value().parse::<u32>();
+                        if let Ok(new_k) = new { kmer_size.set(new_k) };
+                    }
+                },
+                "k-mer size",
+            }
+            div {
+                input {
+                    r#type: "number",
+                    id: "prefix_precalc",
+                    name: "prefix_precalc",
+                    min: "1",
+                    value: "8",
+                    onchange: move |event| {
+                        let new = event.value().parse::<u32>();
+                        if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
+                    }
+                },
+                "LCS array prefix precalc length",
+            }
+            div {
+                input {
+                    r#type: "checkbox",
+                    name: "dedup_batches",
+                    id: "dedup_batches",
+                    checked: true,
+                    onchange: move |_| {
+                        let old: bool = *dedup_batches.read();
+                        *dedup_batches.write() = !old;
+                    }
+                },
+                "Deduplicate k-mer batches",
+            }
+
             h2 { "Query options" }
             div {
                 input {
@@ -287,16 +336,28 @@ pub fn Find(
 
                         let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
 
+                        // Options for indexing reference
+                        let mut build_opts = kbo::index::BuildOpts::default();
+                        build_opts.k = *kmer_size.read() as usize;
+                        build_opts.dedup_batches = *dedup_batches.read();
+                        build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+
                         if !*detailed.read() {
 
                             // TODO Work around cloning reference contig data in Find
 
                             let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
-                            indexes.push((crate::util::build_sbwt(&[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()]), "ref_file".to_string(), bases));
+                            indexes.push((crate::util::build_sbwt(
+                                &[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()],
+                                Some(build_opts),
+                            ), "ref_file".to_string(), bases));
                         } else {
                             refseqs.iter().for_each(|contig| {
                                 let bases: u64 = contig.seq.len() as u64;
-                                indexes.push((crate::util::build_sbwt(&[contig.seq.clone()]), contig.name.clone(), bases));
+                                indexes.push((crate::util::build_sbwt(
+                                    &[contig.seq.clone()],
+                                    Some(build_opts.clone()),
+                                ), contig.name.clone(), bases));
                             });
                         }
 

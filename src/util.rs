@@ -21,8 +21,12 @@ pub struct ContigData {
     pub seq: Vec<u8>,
 }
 
-pub fn build_sbwt(ref_data: &[Vec<u8>]) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
-    kbo::index::build_sbwt_from_vecs(ref_data, &Some(kbo::index::BuildOpts::default()))
+pub fn build_sbwt(
+    ref_data: &[Vec<u8>],
+    opts: Option<kbo::index::BuildOpts>,
+) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
+    let build_opts = if opts.is_some() { opts } else { Some(kbo::index::BuildOpts::default()) };
+    kbo::index::build_sbwt_from_vecs(ref_data, &build_opts)
 }
 
 pub fn read_seq_data(file_contents: &Vec<u8>) -> Vec<ContigData> {
