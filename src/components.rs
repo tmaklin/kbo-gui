@@ -361,6 +361,7 @@ pub fn Find(
                             });
                         }
 
+                        *res.write() = Vec::<FindResult>::new();
                         indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
                             queries.iter().for_each(|contig| {
                                 let mut run_lengths: Vec<FindResult> = Vec::new();
