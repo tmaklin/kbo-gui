@@ -63,19 +63,20 @@ impl Sortable for FindResultField {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 struct FindResult {
-    pub query_file: String,
-    pub ref_file: String,
-    pub start: u64,
-    pub end: u64,
-    pub strand: char,
-    pub length: u64,
-    pub mismatches: u64,
-    pub gap_opens: u64,
-    pub identity: f64,
-    pub coverage: f64,
-    pub query_contig: String,
-    pub ref_contig: String,
+    query_file: String,
+    ref_file: String,
+    start: u64,
+    end: u64,
+    strand: char,
+    length: u64,
+    mismatches: u64,
+    gap_opens: u64,
+    identity: f64,
+    coverage: f64,
+    query_contig: String,
+    ref_contig: String,
 }
 
 #[component]
@@ -117,6 +118,59 @@ pub fn Map() -> Element {
 }
 
 #[component]
+fn SortableFindResultTable(
+    data: Vec::<FindResult>,
+) -> Element {
+    let sorter = use_sorter::<FindResultField>();
+    sorter.read().sort(data.as_mut_slice());
+
+    rsx! {
+        table {
+            thead {
+                tr {
+                    Th { sorter: sorter, field: FindResultField::Query, "query" }
+                    Th { sorter: sorter, field: FindResultField::Ref, "ref" }
+                    Th { sorter: sorter, field: FindResultField::QStart, "q.start" }
+                    Th { sorter: sorter, field: FindResultField::QEnd, "q.end" }
+                    Th { sorter: sorter, field: FindResultField::Strand, "strand" }
+                    Th { sorter: sorter, field: FindResultField::Length, "length" }
+                    Th { sorter: sorter, field: FindResultField::Mismatches, "mismatches" }
+                    Th { sorter: sorter, field: FindResultField::GapOpens, "gap_opens" }
+                    Th { sorter: sorter, field: FindResultField::Identity, "identity" }
+                    Th { sorter: sorter, field: FindResultField::Coverage, "coverage" }
+                    Th { sorter: sorter, field: FindResultField::QContig, "query.contig" }
+                    Th { sorter: sorter, field: FindResultField::RContig, "ref.contig" }
+                }
+            }
+            tbody {
+                {
+                    data.iter().map(|row| {
+                        let identity_rounded: String = format!("{:.2}", row.identity);
+                        let coverage_rounded: String = format!("{:.2}", row.coverage);
+                        rsx! {
+                            tr {
+                                td { "{row.query_file}" }
+                                td { "{row.ref_file}" }
+                                td { "{row.start}" }
+                                td { "{row.end}" }
+                                td { "{row.strand}" }
+                                td { "{row.length}" }
+                                td { "{row.mismatches}" }
+                                td { "{row.gap_opens}" }
+                                td { "{identity_rounded}" }
+                                td { "{coverage_rounded}" }
+                                td { "{row.query_contig}" }
+                                td { "{row.ref_contig}" }
+                            }
+                        }
+                    })
+                }
+            }
+        }
+    }
+}
+
+#[component]
 pub fn Find(
     ref_files: Signal<Vec<Vec<u8>>>,
     query_files: Signal<Vec<Vec<u8>>>,
@@ -130,8 +184,6 @@ pub fn Find(
     // let mut min_len:Signal<u64> = use_signal(|| 100_u64);
     // let mut max_gap_len:Signal<u64> = use_signal(|| 0_u64);
     // let mut max_error_prob:Signal<f64> = use_signal(|| 0.0000001_f64);
-
-    let sorter = use_sorter::<FindResultField>();
 
     rsx! {
         div {
@@ -217,9 +269,6 @@ pub fn Find(
                                     }
                                 }));
 
-                                // Sort by q.start
-                                run_lengths.sort_by_key(|x| x.start);
-
                                 // Print results with query and ref name added
                                 res.write().extend(run_lengths);
 
@@ -229,47 +278,13 @@ pub fn Find(
                 },
                 "run!",
             }
-                table {
-                    thead {
-                        tr {
-                            Th { sorter: sorter, field: FindResultField::Query, "query" }
-                            Th { sorter: sorter, field: FindResultField::Ref, "ref" }
-                            Th { sorter: sorter, field: FindResultField::QStart, "q.start" }
-                            Th { sorter: sorter, field: FindResultField::QEnd, "q.end" }
-                            Th { sorter: sorter, field: FindResultField::Strand, "strand" }
-                            Th { sorter: sorter, field: FindResultField::Length, "length" }
-                            Th { sorter: sorter, field: FindResultField::Mismatches, "mismatches" }
-                            Th { sorter: sorter, field: FindResultField::GapOpens, "gap_opens" }
-                            Th { sorter: sorter, field: FindResultField::Identity, "identity" }
-                            Th { sorter: sorter, field: FindResultField::Coverage, "coverage" }
-                            Th { sorter: sorter, field: FindResultField::QContig, "query.contig" }
-                            Th { sorter: sorter, field: FindResultField::RContig, "ref.contig" }
-                        }
+            if res.read().len() > 0 {
+                {
+                    let data = res.read().to_vec();
+                    rsx! {
+                        SortableFindResultTable { data }
                     }
-                    tbody {
-                        {
-                            res.read().iter().map(|row| {
-                                let identity_rounded: String = format!("{:.2}", row.identity);
-                                let coverage_rounded: String = format!("{:.2}", row.coverage);
-                                rsx! {
-                                    tr {
-                                        td { "{row.query_file}" }
-                                        td { "{row.ref_file}" }
-                                        td { "{row.start}" }
-                                        td { "{row.end}" }
-                                        td { "{row.strand}" }
-                                        td { "{row.length}" }
-                                        td { "{row.mismatches}" }
-                                        td { "{row.gap_opens}" }
-                                        td { "{identity_rounded}" }
-                                        td { "{coverage_rounded}" }
-                                        td { "{row.query_contig}" }
-                                        td { "{row.ref_contig}" }
-                                    }
-                                }
-                            })
-                        }
-                    }
+                }
             }
         }
     }
