@@ -63,7 +63,7 @@ pub trait PartialOrdBy<T>: PartialEq {
 /// - `ASC` and `DESC` are the sort [`Direction`].
 /// - `USING operator` is implied by [`PartialOrdBy`].
 /// - `NULLS { FIRST | LAST }` corresponds to [`NullHandling`].
-/// Meaning you can sort by ascending or descending and optionally specify `NULL` ordering.
+///   Meaning you can sort by ascending or descending and optionally specify `NULL` ordering.
 pub trait Sortable: PartialEq {
     /// Describes how this field can be sorted.
     fn sort_by(&self) -> Option<SortBy>;
@@ -218,7 +218,7 @@ pub fn use_sorter<F: Copy + Default + Sortable>() -> SignalSorter<F> {
     use_signal(|| {
         let field = F::default();
         UseSorter {
-            field: field,
+            field,
             direction: Direction::from_field(&field),
         }
     })

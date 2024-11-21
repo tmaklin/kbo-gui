@@ -237,7 +237,7 @@ pub fn Find(
 
                         if !*detailed.read() {
 
-                            // TODO Clone here should be made unnecessary
+                            // TODO Work around cloning reference contig data in Find
 
                             let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
                             indexes.push((crate::util::build_sbwt(&[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()]), "ref_file".to_string(), bases));
@@ -253,13 +253,13 @@ pub fn Find(
                                 let mut run_lengths: Vec<FindResult> = Vec::new();
 
                                 // Get local alignments for forward strand
-                                let run_lengths_fwd = kbo::find(&contig.seq, &sbwt, &lcs, kbo::FindOpts::default());
+                                let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, kbo::FindOpts::default());
                                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
                                     format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
                                 }));
 
                                 // Add local alignments for reverse complement
-                                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &sbwt, &lcs, kbo::FindOpts::default());
+                                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, kbo::FindOpts::default());
                                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
                                     format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
                                 }));
