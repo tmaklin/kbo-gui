@@ -209,30 +209,82 @@ pub fn Find(
     let mut res = use_signal(Vec::<FindResult>::new);
 
     let mut detailed:Signal<bool> = use_signal(|| false);
-    // let mut min_len:Signal<u64> = use_signal(|| 100_u64);
-    // let mut max_gap_len:Signal<u64> = use_signal(|| 0_u64);
-    // let mut max_error_prob:Signal<f64> = use_signal(|| 0.0000001_f64);
+    let mut min_len:Signal<u64> = use_signal(|| 100_u64);
+    let mut max_gap_len:Signal<u64> = use_signal(|| 0_u64);
+    let mut max_error_prob:Signal<f64> = use_signal(|| 0.0000001_f64);
 
     rsx! {
         div {
-            h2 { "Options" }
+            h2 { "Query options" }
+            div {
+                input {
+                    r#type: "checkbox",
+                    name: "detailed",
+                    id: "detailed",
+                    checked: false,
+                    onchange: move |_| {
+                        let old: bool = *detailed.read();
+                        *detailed.write() = !old;
+                    }
+                },
+                "Detailed",
+            }
+
+            div {
+                input {
+                    r#type: "number",
+                    id: "max_gap_len",
+                    name: "max_gap_len",
+                    min: "0",
+                    value: "0",
+                    onchange: move |event| {
+                        let new = event.value().parse::<u64>();
+                        if let Ok(new_len) = new { max_gap_len.set(new_len) };
+                    }
+                },
+                "Max gap length",
+            }
+
+            div {
+                input {
+                    r#type: "number",
+                    id: "min_len",
+                    name: "min_len",
+                    min: "0",
+                    max: "1.00",
+                    value: "0.0000001",
+                    onchange: move |event| {
+                        let new = event.value().parse::<f64>();
+                        if let Ok(new_prob) = new { max_error_prob.set(new_prob) };
+                    }
+                },
+                "Max random match probability",
+            }
+
+            h2 { "Display options" }
             input {
-                r#type: "checkbox",
-                name: "detailed",
-                id: "detailed",
-                checked: false,
-                onchange: move |_| {
-                    let old: bool = *detailed.read();
-                    *detailed.write() = !old;
+                r#type: "number",
+                id: "min_len",
+                name: "min_len",
+                min: "0",
+                value: "100",
+                onchange: move |event| {
+                    let new = event.value().parse::<u64>();
+                    if let Ok(new_len) = new { min_len.set(new_len) };
                 }
             },
-            "Detailed"
+            "Minimum length",
         }
+
         div {
             h2 { "Result" }
             button {
                 onclick: move |_event| {
                     if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                        let mut find_opts = kbo::FindOpts::default();
+                        find_opts.max_error_prob = *max_error_prob.read();
+                        find_opts.max_gap_len = *max_gap_len.read() as usize;
+
                         let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
 
                         if !*detailed.read() {
@@ -253,13 +305,13 @@ pub fn Find(
                                 let mut run_lengths: Vec<FindResult> = Vec::new();
 
                                 // Get local alignments for forward strand
-                                let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, kbo::FindOpts::default());
+                                let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
                                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
                                     format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
                                 }));
 
                                 // Add local alignments for reverse complement
-                                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, kbo::FindOpts::default());
+                                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
                                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
                                     format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
                                 }));
@@ -273,9 +325,20 @@ pub fn Find(
                 },
                 "run!",
             }
+
             if res.read().len() > 0 {
                 {
-                    let data = res.read().to_vec();
+                    let data = res.read()
+                                  .to_vec()
+                                  .iter()
+                                  .filter_map(|x|
+                                              if x.length >= *min_len.read() {
+                                                  Some(x.clone())
+                                              } else {
+                                                  None
+                                              }
+                                  ).collect::<Vec<_>>();
+
                     rsx! {
                         SortableFindResultTable { data }
                     }
