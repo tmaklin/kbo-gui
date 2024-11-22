@@ -83,7 +83,12 @@ pub fn Kbo() -> Element {
         {
             if *kbo_mode.read() == KboMode::Map {
                 rsx! {
-                    crate::components::Map {}
+                    crate::components::Map {
+                        ref_files,
+                        query_files,
+                        queries,
+                        refseqs,
+                    }
                 }
             } else if *kbo_mode.read() == KboMode::Find {
                 rsx! {

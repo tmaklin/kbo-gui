@@ -109,10 +109,104 @@ pub fn FastaFileSelector(
 }
 
 #[component]
-pub fn Map() -> Element {
+pub fn Map(
+    ref_files: Signal<Vec<Vec<u8>>>,
+    query_files: Signal<Vec<Vec<u8>>>,
+    queries: Vec<crate::util::ContigData>,
+    refseqs: Vec<crate::util::ContigData>,
+) -> Element {
+
+    let mut res = use_signal(Vec::<u8>::new);
+
+    // Options for running queries
+    let mut max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
+
+    // Options for indexing reference
+    let kmer_size: Signal<u32> = use_signal(|| 31);
+    let dedup_batches: Signal<bool> = use_signal(|| true);
+    let prefix_precalc: Signal<u32> = use_signal(|| 8);
+
+    let colwidth: u64 = 80;
+
     rsx! {
         div {
+            h2 { "SBWT options" }
+            BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
+
+            h2 { "Query options" }
+            div {
+                input {
+                    r#type: "number",
+                    id: "min_len",
+                    name: "min_len",
+                    min: "0",
+                    max: "1.00",
+                    value: "0.0000001",
+                    onchange: move |event| {
+                        let new = event.value().parse::<f64>();
+                        if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                    }
+                },
+                "Max random match probability",
+            }
+
             { "Map is not yet implemented; select \"Mode: Find\" to continue." }
+        }
+        div {
+            h2 { "Result" }
+            button {
+                onclick: move |_event| {
+                    if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                        let mut map_opts = kbo::MapOpts::default();
+                        map_opts.max_error_prob = *max_error_prob.read();
+
+                        queries.iter().for_each(|query_contig| {
+                            // Options for indexing reference
+                            let mut build_opts = kbo::index::BuildOpts::default();
+                            build_opts.build_select = true;
+                            build_opts.k = *kmer_size.read() as usize;
+                            build_opts.dedup_batches = *dedup_batches.read();
+                            build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+
+                            let (sbwt, lcs) = crate::util::build_sbwt(
+                                &[query_contig.seq.clone()],
+                                Some(build_opts),
+                            );
+
+                            refseqs.iter().for_each(|ref_contig| {
+                                res.write().append(&mut kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts));
+                            });
+                        });
+                    }
+                },
+                "run!",
+            }
+
+                            // let _ = writeln!(&mut stdout.lock(),
+                            //                  ">{}\n{}", query_file, std::str::from_utf8(&res).expect("UTF-8"));
+
+            if res.read().len() > 0 {
+                {
+                    rsx! {
+                        div {
+                            code {
+                                { ">Query" }
+                                br {}
+                                {
+                                    res.read()
+                                       .chunks(colwidth as usize)
+                                       .map(|seq|
+                                            rsx! {
+                                                { std::str::from_utf8(seq).expect("UTF-8") }
+                                                br {}
+                                            }
+                                       )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
