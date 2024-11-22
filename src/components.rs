@@ -193,14 +193,7 @@ pub fn Map(
                                 { ">Query" }
                                 br {}
                                 {
-                                    res.read()
-                                       .chunks(colwidth as usize)
-                                       .map(|seq|
-                                            rsx! {
-                                                { std::str::from_utf8(seq).expect("UTF-8") }
-                                                br {}
-                                            }
-                                       )
+                                    std::str::from_utf8(res.read().as_slice()).expect("UTF-8").to_string()
                                 }
                             }
                         }
