@@ -316,7 +316,7 @@ pub fn Find(
                     value: "0.0000001",
                     onchange: move |event| {
                         let new = event.value().parse::<f64>();
-                        if let Ok(new_prob) = new { max_error_prob.set(new_prob) };
+                        if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
                     }
                 },
                 "Max random match probability",
