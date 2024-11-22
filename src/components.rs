@@ -199,6 +199,58 @@ fn format_find_result(
 }
 
 #[component]
+fn BuildOptsSelector(
+    kmer_size: Signal<u32>,
+    dedup_batches: Signal<bool>,
+    prefix_precalc: Signal<u32>,
+) -> Element {
+    rsx! {
+        div {
+            input {
+                r#type: "number",
+                id: "kmer_size",
+                name: "kmer_size",
+                min: "2",
+                max: "256",
+                value: "31",
+                onchange: move |event| {
+                    let new = event.value().parse::<u32>();
+                    if let Ok(new_k) = new { kmer_size.set(new_k.clamp(2, 255)) };
+                }
+            },
+            "k-mer size",
+        }
+        div {
+            input {
+                r#type: "number",
+                id: "prefix_precalc",
+                name: "prefix_precalc",
+                min: "1",
+                value: "8",
+                onchange: move |event| {
+                    let new = event.value().parse::<u32>();
+                    if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
+                }
+            },
+            "LCS array prefix precalc length",
+        }
+        div {
+            input {
+                r#type: "checkbox",
+                name: "dedup_batches",
+                id: "dedup_batches",
+                checked: true,
+                onchange: move |_| {
+                    let old: bool = *dedup_batches.read();
+                    *dedup_batches.write() = !old;
+                }
+            },
+            "Deduplicate k-mer batches",
+        }
+    }
+}
+
+#[component]
 pub fn Find(
     ref_files: Signal<Vec<Vec<u8>>>,
     query_files: Signal<Vec<Vec<u8>>>,
@@ -215,54 +267,14 @@ pub fn Find(
     let mut max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
 
     // Options for indexing reference
-    let mut kmer_size: Signal<u32> = use_signal(|| 31);
-    let mut dedup_batches: Signal<bool> = use_signal(|| true);
-    let mut prefix_precalc: Signal<u32> = use_signal(|| 8);
+    let kmer_size: Signal<u32> = use_signal(|| 31);
+    let dedup_batches: Signal<bool> = use_signal(|| true);
+    let prefix_precalc: Signal<u32> = use_signal(|| 8);
 
     rsx! {
         div {
             h2 { "SBWT options" }
-            div {
-                input {
-                    r#type: "number",
-                    id: "kmer_size",
-                    name: "kmer_size",
-                    min: "1",
-                    value: "31",
-                    onchange: move |event| {
-                        let new = event.value().parse::<u32>();
-                        if let Ok(new_k) = new { kmer_size.set(new_k) };
-                    }
-                },
-                "k-mer size",
-            }
-            div {
-                input {
-                    r#type: "number",
-                    id: "prefix_precalc",
-                    name: "prefix_precalc",
-                    min: "1",
-                    value: "8",
-                    onchange: move |event| {
-                        let new = event.value().parse::<u32>();
-                        if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
-                    }
-                },
-                "LCS array prefix precalc length",
-            }
-            div {
-                input {
-                    r#type: "checkbox",
-                    name: "dedup_batches",
-                    id: "dedup_batches",
-                    checked: true,
-                    onchange: move |_| {
-                        let old: bool = *dedup_batches.read();
-                        *dedup_batches.write() = !old;
-                    }
-                },
-                "Deduplicate k-mer batches",
-            }
+            BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
 
             h2 { "Query options" }
             div {
