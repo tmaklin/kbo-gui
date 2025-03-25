@@ -126,80 +126,82 @@ pub fn Map(
     let dedup_batches: Signal<bool> = use_signal(|| true);
     let prefix_precalc: Signal<u32> = use_signal(|| 8);
 
-    let colwidth: u64 = 80;
-
     rsx! {
-        div {
-            h2 { "SBWT options" }
-            BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
-
-            h2 { "Query options" }
-            div {
-                input {
-                    r#type: "number",
-                    id: "min_len",
-                    name: "min_len",
-                    min: "0",
-                    max: "1.00",
-                    value: "0.0000001",
-                    onchange: move |event| {
-                        let new = event.value().parse::<f64>();
-                        if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
-                    }
-                },
-                "Max random match probability",
-            }
-
-            { "Map is not yet implemented; select \"Mode: Find\" to continue." }
-        }
-        div {
-            h2 { "Result" }
-            button {
-                onclick: move |_event| {
-                    if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                        let mut map_opts = kbo::MapOpts::default();
-                        map_opts.max_error_prob = *max_error_prob.read();
-
-                        queries.iter().for_each(|query_contig| {
-                            // Options for indexing reference
-                            let mut build_opts = kbo::BuildOpts::default();
-                            build_opts.build_select = true;
-                            build_opts.k = *kmer_size.read() as usize;
-                            build_opts.dedup_batches = *dedup_batches.read();
-                            build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                            let (sbwt, lcs) = crate::util::build_sbwt(
-                                &[query_contig.seq.clone()],
-                                Some(build_opts),
-                            );
-
-                            refseqs.iter().for_each(|ref_contig| {
-                                res.write().append(&mut kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone()));
-                            });
-                        });
-                    }
-                },
-                "run!",
-            }
-
-                            // let _ = writeln!(&mut stdout.lock(),
-                            //                  ">{}\n{}", query_file, std::str::from_utf8(&res).expect("UTF-8"));
-
-            if res.read().len() > 0 {
-                {
-                    rsx! {
-                        div {
-                            code {
-                                { ">Query" }
-                                br {}
-                                {
-                                    std::str::from_utf8(res.read().as_slice()).expect("UTF-8").to_string()
-                                }
-                            }
+        div { class: "row",
+              div { class: "column",
+                   details {
+                        summary { "Show query options" },
+                        div { class: "row",
+                              div { class: "column",
+                                    "Error tolerance"
+                              },
+                              div { class: "column",
+                                    input {
+                                        r#type: "number",
+                                        id: "min_len",
+                                        name: "min_len",
+                                        min: "0",
+                                        max: "1.00",
+                                        value: "0.0000001",
+                                        onchange: move |event| {
+                                            let new = event.value().parse::<f64>();
+                                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                                        }
+                                    },
+                              }
                         }
+
+                        BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
                     }
-                }
-            }
+              }
+              div { class: "column",
+                    br{}
+                    button {
+                        onclick: move |_event| {
+                            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                                let mut map_opts = kbo::MapOpts::default();
+                                map_opts.max_error_prob = *max_error_prob.read();
+
+                                queries.iter().for_each(|query_contig| {
+                                    // Options for indexing reference
+                                    let mut build_opts = kbo::BuildOpts::default();
+                                    build_opts.build_select = true;
+                                    build_opts.k = *kmer_size.read() as usize;
+                                    build_opts.dedup_batches = *dedup_batches.read();
+                                    build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+
+                                    let (sbwt, lcs) = crate::util::build_sbwt(
+                                        &[query_contig.seq.clone()],
+                                        Some(build_opts),
+                                    );
+
+                                    refseqs.iter().for_each(|ref_contig| {
+                                        res.write().append(&mut kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone()));
+                                    });
+                                });
+                            }
+                        },
+                        "run!",
+                    }
+              }
+        }
+        div { class: "row",
+              h2 { "Result" }
+              if res.read().len() > 0 {
+                  {
+                      rsx! {
+                          div {
+                              code {
+                                  { ">Query" }
+                                  br {}
+                                  {
+                                      std::str::from_utf8(res.read().as_slice()).expect("UTF-8").to_string()
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
         }
     }
 }
@@ -292,47 +294,60 @@ fn BuildOptsSelector(
     prefix_precalc: Signal<u32>,
 ) -> Element {
     rsx! {
-        div {
-            input {
-                r#type: "number",
-                id: "kmer_size",
-                name: "kmer_size",
-                min: "2",
-                max: "256",
-                value: "31",
-                onchange: move |event| {
-                    let new = event.value().parse::<u32>();
-                    if let Ok(new_k) = new { kmer_size.set(new_k.clamp(2, 255)) };
-                }
-            },
-            "k-mer size",
+        div { class: "row",
+              div { class: "column",
+                    "k-mer size",
+              }
+              div { class: "column",
+                    input {
+                        r#type: "number",
+                        id: "kmer_size",
+                        name: "kmer_size",
+                        min: "2",
+                        max: "256",
+                        value: "31",
+                        onchange: move |event| {
+                            let new = event.value().parse::<u32>();
+                            if let Ok(new_k) = new { kmer_size.set(new_k.clamp(2, 255)) };
+                        }
+                    },
+              }
         }
-        div {
-            input {
-                r#type: "number",
-                id: "prefix_precalc",
-                name: "prefix_precalc",
-                min: "1",
-                value: "8",
-                onchange: move |event| {
-                    let new = event.value().parse::<u32>();
-                    if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
-                }
-            },
-            "LCS array prefix precalc length",
+        div { class: "row",
+              div { class: "column",
+                    "Prefix precalc size",
+              }
+              div { class: "column",
+                  input {
+                      r#type: "number",
+                      id: "prefix_precalc",
+                      name: "prefix_precalc",
+                      min: "1",
+                      max: "255",
+                      value: "8",
+                      onchange: move |event| {
+                          let new = event.value().parse::<u32>();
+                          if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
+                      }
+                  },
+              }
         }
-        div {
-            input {
-                r#type: "checkbox",
-                name: "dedup_batches",
-                id: "dedup_batches",
-                checked: true,
-                onchange: move |_| {
-                    let old: bool = *dedup_batches.read();
-                    *dedup_batches.write() = !old;
-                }
-            },
-            "Deduplicate k-mer batches",
+        div { class: "row",
+              div { class: "column",
+                    "Deduplicate k-mers",
+              }
+              div { class: "column",
+                  input {
+                      r#type: "checkbox",
+                      name: "dedup_batches",
+                      id: "dedup_batches",
+                      checked: true,
+                      onchange: move |_| {
+                          let old: bool = *dedup_batches.read();
+                          *dedup_batches.write() = !old;
+                      }
+                  },
+              }
         }
     }
 }
