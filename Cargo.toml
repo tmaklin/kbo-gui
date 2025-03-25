@@ -13,10 +13,10 @@ sbwt = "0.3.7"
 tokio = { version = "1.40.0", features = ["rt"] }
 
 # Debug
-dioxus-logger = "0.5.1"
+dioxus-logger = "0.6.2"
 
 ## GUI
-dioxus = { version = "0.5", features = ["web", "router"] }
+dioxus = { version = "0.6.3", features = ["web", "router"] }
 manganis = "0.2.2"
 
 ## Subdependencies that need features enabled
@@ -26,3 +26,15 @@ getrandom = { version = "0.2", features = ["js"] }
 version = "0.6.0"
 features = ["flate2"]
 default-features = false
+
+[profile]
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"
