@@ -162,7 +162,7 @@ pub fn Map(
 
                         queries.iter().for_each(|query_contig| {
                             // Options for indexing reference
-                            let mut build_opts = kbo::index::BuildOpts::default();
+                            let mut build_opts = kbo::BuildOpts::default();
                             build_opts.build_select = true;
                             build_opts.k = *kmer_size.read() as usize;
                             build_opts.dedup_batches = *dedup_batches.read();
@@ -174,7 +174,7 @@ pub fn Map(
                             );
 
                             refseqs.iter().for_each(|ref_contig| {
-                                res.write().append(&mut kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts));
+                                res.write().append(&mut kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone()));
                             });
                         });
                     }
@@ -436,7 +436,7 @@ pub fn Find(
                         let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
 
                         // Options for indexing reference
-                        let mut build_opts = kbo::index::BuildOpts::default();
+                        let mut build_opts = kbo::BuildOpts::default();
                         build_opts.k = *kmer_size.read() as usize;
                         build_opts.dedup_batches = *dedup_batches.read();
                         build_opts.prefix_precalc = *prefix_precalc.read() as usize;
