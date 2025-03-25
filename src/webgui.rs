@@ -35,80 +35,117 @@ pub fn Kbo() -> Element {
     rsx! {
         document::Stylesheet { href: CSS }
 
-        // Run mode selector
-        // supported: see KboMode
-        div {
-            h2 { "Mode" }
-            input {
-                r#type: "radio",
-                name: "kbo-mode",
-                value: "find",
-                checked: true,
-                onchange: move |_| {
-                    *kbo_mode.write() = KboMode::Find;
-                },
-            }
-            "Find"
-            input {
-                r#type: "radio",
-                name: "kbo-mode",
-                value: "map",
-                onchange: move |_| {
-                    *kbo_mode.write() = KboMode::Map;
-                },
-            }
-            "Map"
+        // kbo title + space for logo
+        div { class: "row",
+              div { class: "column",
+                    h1 { "kbo" }
+              }
         }
 
-        div {
-            h2 { "Reference file" }
-            crate::components::FastaFileSelector { multiple: false, seq_data: ref_files }
-            {
-                if ref_files.read().len() > 0 {
-                    ref_files.read().iter().for_each(|seq| {
-                        refseqs.extend(crate::util::read_seq_data(seq));
-                    });
-                }
-            }
+        // Run mode selector,
+        // for supported see KboMode
+        div { class: "row",
+              div { class: "column",
+
+                    // // Mode `Call`
+                    // input {
+                    //     r#type: "button",
+                    //     name: "kbo-mode",
+                    //     value: "Call",
+                    //     onclick: move |_| {
+                    //         *kbo_mode.write() = KboMode::Call;
+                    //     },
+                    // }
+
+                    // Mode `Find`
+                    input {
+                        r#type: "button",
+                        name: "kbo-mode",
+                        value: "Find",
+                        onclick: move |_| {
+                            *kbo_mode.write() = KboMode::Find;
+                        },
+                    }
+
+                    // Mode `Map`
+                    input {
+                        r#type: "button",
+                        name: "kbo-mode",
+                        value: "Map",
+                        onclick: move |_| {
+                            *kbo_mode.write() = KboMode::Map;
+                        },
+                    }
+              }
         }
 
-        div {
-            h2 { "Query file(s)" }
-            crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
-            {
-                if query_files.read().len() > 0 {
-                    query_files.read().iter().for_each(|query| {
-                        queries.extend(crate::util::read_seq_data(query));
-                    })
-                }
-            }
+        // Input selectors
+        div { class: "row",
+              // Reference file
+              div { class: "column",
+                    h2 {
+                        "Reference file"
+                    }
+                    crate::components::FastaFileSelector { multiple: false, seq_data: ref_files }
+                    {
+                        if ref_files.read().len() > 0 {
+                            ref_files.read().iter().for_each(|seq| {
+                                refseqs.extend(crate::util::read_seq_data(seq));
+                            });
+                        }
+                    }
+              }
+
+              // Query file(s)
+              div { class: "column",
+                    h2 { "Query file(s)" }
+                    crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
+                    {
+                        if query_files.read().len() > 0 {
+                            query_files.read().iter().for_each(|query| {
+                                queries.extend(crate::util::read_seq_data(query));
+                            })
+                        }
+                    }
+              }
         }
 
+        // Dynamically rendered components,
+        // based on which KboMode is selected.
         {
-            if *kbo_mode.read() == KboMode::Map {
-                rsx! {
-                    crate::components::Map {
-                        ref_files,
-                        query_files,
-                        queries,
-                        refseqs,
+            match *kbo_mode.read() {
+
+                // Why does this complain of unreachable patterns?
+                KboMode::Find => {
+                    // Mode `Find`
+                    rsx! {
+                        crate::components::Find {
+                            ref_files,
+                            query_files,
+                            queries,
+                            refseqs,
+                        }
                     }
-                }
-            } else if *kbo_mode.read() == KboMode::Find {
-                rsx! {
-                    crate::components::Find {
-                        ref_files,
-                        query_files,
-                        queries,
-                        refseqs,
+                },
+
+                KboMode::Map => {
+                    rsx! {
+                        crate::components::Map {
+                            ref_files,
+                            query_files,
+                            queries,
+                            refseqs,
+                        }
                     }
-                }
-            } else {
-                rsx! {
-                    div {
-                        { "Unknown mode; check your selection." }
+                },
+
+                _ => {
+                    rsx! {
+                        div {
+                            { "Unknown mode; check your selection." }
+                        }
                     }
-                }
+                },
             }
         }
     }

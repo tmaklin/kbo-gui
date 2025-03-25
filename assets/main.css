@@ -39,3 +39,11 @@ body {
 #header {
     max-width: 1200px;
 }
+
+.row {
+  display: flex;
+}
+
+.column {
+  flex: 50%;
+}
