@@ -23,9 +23,9 @@ pub struct ContigData {
 
 pub fn build_sbwt(
     ref_data: &[Vec<u8>],
-    opts: Option<kbo::index::BuildOpts>,
+    opts: Option<kbo::BuildOpts>,
 ) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
-    let build_opts = if opts.is_some() { opts } else { Some(kbo::index::BuildOpts::default()) };
+    let build_opts = if opts.is_some() { opts } else { Some(kbo::BuildOpts::default()) };
     kbo::index::build_sbwt_from_vecs(ref_data, &build_opts)
 }
 

@@ -1851,9 +1851,9 @@ dependencies = [
 
 [[package]]
 name = "kbo"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8da3ddb0d4122e1eea47cec55a2f07eb00839cd59133a28731fe0101c2d0dd6a"
+checksum = "8cfbddbfdcffee11606432cf0a51c0ae9952e74eab32cea8bc1e8a93af4a15ee"
 dependencies = [
  "embed-doc-image",
  "sbwt",
@@ -2720,9 +2720,9 @@ checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
 name = "sbwt"
-version = "0.3.4"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b416e63e8d619ae292f6c029306524e8d5d44954750291bf14bb79e6336973fb"
+checksum = "7e219311585d5daa4b8ab7d29b3e5623f54b68b3bfefb704ecf7eb2fbfc76f1a"
 dependencies = [
  "bitvec",
  "byteorder",
