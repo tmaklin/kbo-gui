@@ -13,6 +13,8 @@
 //
 use dioxus::prelude::*;
 
+static CSS: Asset = asset!("/assets/main.css");
+
 #[derive(Default, PartialEq)]
 enum KboMode {
     #[default]
@@ -31,6 +33,8 @@ pub fn Kbo() -> Element {
     let mut refseqs: Vec<crate::util::ContigData> = Vec::new();
 
     rsx! {
+        document::Stylesheet { href: CSS }
+
         // Run mode selector
         // supported: see KboMode
         div {
