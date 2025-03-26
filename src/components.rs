@@ -294,7 +294,7 @@ pub fn BuildOptsSelector(
     prefix_precalc: Signal<u32>,
 ) -> Element {
     rsx! {
-        div { class: "row",
+        div { class: "row-contents",
               div { class: "column",
                     "k-mer size",
               }
@@ -313,9 +313,9 @@ pub fn BuildOptsSelector(
                     },
               }
         }
-        div { class: "row",
+        div { class: "row-contents",
               div { class: "column",
-                    "Prefix precalc size",
+                    "Prefix precalc",
               }
               div { class: "column",
                   input {
@@ -332,9 +332,9 @@ pub fn BuildOptsSelector(
                   },
               }
         }
-        div { class: "row",
+        div { class: "row-contents",
               div { class: "column",
-                    "Deduplicate k-mers",
+                    "Deduplicate",
               }
               div { class: "column",
                   input {
@@ -359,9 +359,9 @@ pub fn FindOptsSelector(
     max_error_prob: Signal<f64>,
 ) -> Element {
     rsx! {
-        div { class: "row",
+        div { class: "row-contents",
               div { class: "column",
-                    "Max gap length",
+                    "Max. gap size",
               }
               div { class: "column",
                     input {
@@ -378,7 +378,7 @@ pub fn FindOptsSelector(
                     },
               }
         }
-        div { class: "row",
+        div { class: "row-contents",
               div { class: "column",
                     "Error tolerance",
               }
@@ -397,9 +397,9 @@ pub fn FindOptsSelector(
                     },
               }
         }
-        div { class: "row",
+        div { class: "row-contents",
               div { class: "column",
-                    "Minimum length",
+                    "Min. length",
               }
               div { class: "column",
                     input {
@@ -442,22 +442,7 @@ pub fn Find(
 
     rsx! {
         div { class: "row",
-              div { class: "column",
-                    details {
-                        summary { "Indexing options" }
-                        BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
-                    }
-              }
-              div { class: "column",
-                    details {
-                        summary { "Alignment options" }
-                        FindOptsSelector { min_len, max_gap_len, max_error_prob }
-                    }
-              }
-        }
-
-        div { class: "row",
-              div { class: "column",
+              div { class: "column-left",
                     input {
                         r#type: "checkbox",
                         name: "detailed",
@@ -471,67 +456,84 @@ pub fn Find(
                     "Split reference by contig",
               }
 
-              div { class: "column",
-                    button {
-                        onclick: move |_event| {
-                            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                                let mut find_opts = kbo::FindOpts::default();
-                                find_opts.max_error_prob = *max_error_prob.read();
-                                find_opts.max_gap_len = *max_gap_len.read() as usize;
+              div { class: "column-right" }
+        }
 
-                                let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
-
-                                // Options for indexing reference
-                                let mut build_opts = kbo::BuildOpts::default();
-                                build_opts.k = *kmer_size.read() as usize;
-                                build_opts.dedup_batches = *dedup_batches.read();
-                                build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                if !*detailed.read() {
-
-                                    // TODO Work around cloning reference contig data in Find
-
-                                    let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
-                                    indexes.push((crate::util::build_sbwt(
-                                        &[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()],
-                                        Some(build_opts),
-                                    ), "ref_file".to_string(), bases));
-                                } else {
-                                    refseqs.iter().for_each(|contig| {
-                                        let bases: u64 = contig.seq.len() as u64;
-                                        indexes.push((crate::util::build_sbwt(
-                                            &[contig.seq.clone()],
-                                            Some(build_opts.clone()),
-                                        ), contig.name.clone(), bases));
-                                    });
-                                }
-
-                                *res.write() = Vec::<FindResult>::new();
-                                indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
-                                    queries.iter().for_each(|contig| {
-                                        let mut run_lengths: Vec<FindResult> = Vec::new();
-
-                                        // Get local alignments for forward strand
-                                        let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
-                                        run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
-                                        }));
-
-                                        // Add local alignments for reverse complement
-                                        let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
-                                        run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
-                                        }));
-
-                                        // Print results with query and ref name added
-                                        res.write().extend(run_lengths);
-
-                                    });
-                                });
-                            }
-                        },
-                        "Run analysis",
+        div { class: "row",
+              div { class: "column-left",
+                    details {
+                        summary { "Indexing options" }
+                        BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
                     }
+              }
+              div { class: "column-right",
+                    details {
+                        summary { "Alignment options" }
+                        FindOptsSelector { min_len, max_gap_len, max_error_prob }
+                    }
+              }
+        }
+
+        div { class: "row-run",
+              button {
+                  onclick: move |_event| {
+                      if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                          let mut find_opts = kbo::FindOpts::default();
+                          find_opts.max_error_prob = *max_error_prob.read();
+                          find_opts.max_gap_len = *max_gap_len.read() as usize;
+
+                          let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
+
+                          // Options for indexing reference
+                          let mut build_opts = kbo::BuildOpts::default();
+                          build_opts.k = *kmer_size.read() as usize;
+                          build_opts.dedup_batches = *dedup_batches.read();
+                          build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+
+                          if !*detailed.read() {
+
+                              // TODO Work around cloning reference contig data in Find
+
+                              let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
+                              indexes.push((crate::util::build_sbwt(
+                                  &[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()],
+                                  Some(build_opts),
+                              ), "ref_file".to_string(), bases));
+                          } else {
+                              refseqs.iter().for_each(|contig| {
+                                  let bases: u64 = contig.seq.len() as u64;
+                                  indexes.push((crate::util::build_sbwt(
+                                      &[contig.seq.clone()],
+                                      Some(build_opts.clone()),
+                                  ), contig.name.clone(), bases));
+                              });
+                          }
+
+                          *res.write() = Vec::<FindResult>::new();
+                          indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
+                              queries.iter().for_each(|contig| {
+                                  let mut run_lengths: Vec<FindResult> = Vec::new();
+
+                                  // Get local alignments for forward strand
+                                  let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
+                                  run_lengths.extend(run_lengths_fwd.iter().map(|x| {
+                                      format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
+                                  }));
+
+                                  // Add local alignments for reverse complement
+                                  let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
+                                  run_lengths.extend(run_lengths_rev.iter().map(|x| {
+                                      format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
+                                  }));
+
+                                  // Print results with query and ref name added
+                                  res.write().extend(run_lengths);
+
+                              });
+                          });
+                      }
+                  },
+                  "Run analysis",
               }
         }
 

@@ -89,7 +89,7 @@ pub fn Kbo() -> Element {
         // Input selectors
         div { class: "row",
               // Reference file
-              div { class: "column",
+              div { class: "column-left",
                     h3 {
                         "Reference file"
                     }
@@ -104,7 +104,7 @@ pub fn Kbo() -> Element {
               }
 
               // Query file(s)
-              div { class: "column",
+              div { class: "column-right",
                     h3 { "Query file(s)" }
                     crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
                     {
@@ -155,6 +155,6 @@ pub fn Kbo() -> Element {
                 },
             }
         }
-        footer { { footer_string } }
+        footer { class: "footer", { footer_string } }
     }
 }

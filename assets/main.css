@@ -40,23 +40,64 @@ body {
     max-width: 1200px;
 }
 
-.row {
+.row-contents {
   display: flex;
   align-content: flex-start;
   text-align: left;
   width: 100%;
   max-width: 800px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
-.row-header row {
+.row {
+  display: flex;
+  align-content: flex-start;
+  text-align: left;
+  width: 100%;
+  min-width: 800px;
+  max-width: 800px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.row-header {
   text-align: center;
 }
 
-.row-results row {
+.row-run {
+  text-align: center;
+  margin-top: 1em;
+  display: flex;
+  max-width: 800px;
+}
+
+.row-results {
     width: 80%;
+    max-width: 800px;
+    overflow-x: scroll;
+    margin-top: 1em;
 }
 
 .column {
   flex: 50%;
   width: 50%;
+}
+
+.column-left {
+  flex: 50%;
+  width: 50%;
+  margin-right: 0.5em;
+  margin-left: 6.5em;
+}
+
+.column-right {
+  flex: 50%;
+  width: 50%;
+  margin-right: 0.5em;
+  margin-left: 5em;
+}
+
+.footer {
+  margin-top: 3em;
 }
