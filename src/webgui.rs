@@ -77,84 +77,98 @@ pub fn Kbo() -> Element {
     rsx! {
         document::Stylesheet { href: CSS }
 
-        // kbo title + space for logo
-        div { class: "row-centred",
-              h1 { "kbo"}
-        }
+        div { class: "div-box",
+              // kbo title + space for logo
+              div { class: "row-logo",
+                    h1 { "kbo"}
+              }
 
-        div { class: "row-header",
-              RunModeSelector { kbo_mode }
-        }
+              div { class: "row-header",
+                    RunModeSelector { kbo_mode }
+              }
 
-        // Input selectors
-        div { class: "row",
-              // Reference file
-              div { class: "column-left",
-                    h3 {
-                        "Reference file"
+              // Input selectors
+              div { class: "row",
+                    // Reference file
+                    div { class: "column-left",
+                          h3 {
+                              "Reference file"
+                          }
+                          crate::components::FastaFileSelector { multiple: false, seq_data: ref_files }
+                          {
+                              if ref_files.read().len() > 0 {
+                                  ref_files.read().iter().for_each(|seq| {
+                                      refseqs.extend(crate::util::read_seq_data(seq));
+                                  });
+                              }
+                          }
                     }
-                    crate::components::FastaFileSelector { multiple: false, seq_data: ref_files }
-                    {
-                        if ref_files.read().len() > 0 {
-                            ref_files.read().iter().for_each(|seq| {
-                                refseqs.extend(crate::util::read_seq_data(seq));
-                            });
-                        }
+
+                    // Query file(s)
+                    div { class: "column-right",
+                          h3 { "Query file(s)" }
+                          crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
+                          {
+                              if query_files.read().len() > 0 {
+                                  query_files.read().iter().for_each(|query| {
+                                      queries.extend(crate::util::read_seq_data(query));
+                                  })
+                              }
+                          }
                     }
               }
 
-              // Query file(s)
-              div { class: "column-right",
-                    h3 { "Query file(s)" }
-                    crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
-                    {
-                        if query_files.read().len() > 0 {
-                            query_files.read().iter().for_each(|query| {
-                                queries.extend(crate::util::read_seq_data(query));
-                            })
-                        }
-                    }
+              // Dynamically rendered components,
+              // based on which KboMode is selected.
+              {
+                  match *kbo_mode.read() {
+
+                      // Why does this complain of unreachable patterns?
+                      KboMode::Find => {
+                          // Mode `Find`
+                          rsx! {
+                              crate::components::Find {
+                                  ref_files,
+                                  query_files,
+                                  queries,
+                                  refseqs,
+                              }
+                          }
+                      },
+
+                      KboMode::Map => {
+                          rsx! {
+                              crate::components::Map {
+                                  ref_files,
+                                  query_files,
+                                  queries,
+                                  refseqs,
+                              }
+                          }
+                      },
+
+                      _ => {
+                          rsx! {
+                              div {
+                                  { "Unknown mode; check your selection." }
+                              }
+                          }
+                      },
+                  }
               }
         }
-
-        // Dynamically rendered components,
-        // based on which KboMode is selected.
-        {
-            match *kbo_mode.read() {
-
-                // Why does this complain of unreachable patterns?
-                KboMode::Find => {
-                    // Mode `Find`
-                    rsx! {
-                        crate::components::Find {
-                            ref_files,
-                            query_files,
-                            queries,
-                            refseqs,
-                        }
-                    }
-                },
-
-                KboMode::Map => {
-                    rsx! {
-                        crate::components::Map {
-                            ref_files,
-                            query_files,
-                            queries,
-                            refseqs,
-                        }
-                    }
-                },
-
-                _ => {
-                    rsx! {
-                        div {
-                            { "Unknown mode; check your selection." }
-                        }
-                    }
-                },
-            }
+        footer { class: "footer",
+                 div { class: "row-footer",
+                       div { class: "column-footer",
+                             { footer_string },
+                       }
+                       div { class: "column-footer",
+                             a { href: "https://docs.rs/kbo", "About" },
+                       }
+                       div { class: "column-footer",
+                             a { href: "https://github.com/tmaklin/kbo-gui", "Report issues" },
+                       }
+                 }
         }
-        footer { class: "footer", { footer_string } }
     }
 }

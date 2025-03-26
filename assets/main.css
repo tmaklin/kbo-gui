@@ -65,18 +65,33 @@ body {
   text-align: center;
 }
 
+.row-logo {
+  text-align: center;
+}
+
 .row-run {
   text-align: center;
-  margin-top: 1em;
+  margin-top: 2em;
   display: flex;
+  min-width: 350px;
   max-width: 800px;
 }
 
 .row-results {
-    width: 80%;
-    max-width: 800px;
+  text-align: center;
+    width: 100%;
+    max-width: 750px;
     overflow-x: scroll;
     margin-top: 1em;
+    margin-left: 1.5em;
+    margin-right: 0em;
+}
+
+.row-footer {
+  text-align: center;
+  display: flex;
+  width: 100%;
+  min-width: 400px;
 }
 
 .column {
@@ -89,6 +104,7 @@ body {
   width: 50%;
   margin-right: 0.5em;
   margin-left: 6.5em;
+  overflow-x: scroll;
 }
 
 .column-right {
@@ -96,8 +112,23 @@ body {
   width: 50%;
   margin-right: 0.5em;
   margin-left: 5em;
+  overflow-x: scroll;
+}
+
+.column-footer {
+  flex: 33%;
+  width: 33%;
 }
 
 .footer {
-  margin-top: 3em;
+  margin-top: 2em;
+  padding-bottom: 3em;
+  text-align: center;
+}
+
+.div-box {
+  min-width: 800px;
+  border: 2px solid #cccccc;
+  border-radius: 5px;
+  padding-bottom: 2em;
 }

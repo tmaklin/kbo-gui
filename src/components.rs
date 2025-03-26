@@ -259,6 +259,40 @@ fn SortableFindResultTable(
     }
 }
 
+#[component]
+fn CopyableFindResultTable(
+    data: Vec::<FindResult>,
+) -> Element {
+
+    let display = data.iter().map(|x| {
+        let identity_rounded: String = format!("{:.2}", x.identity);
+        let coverage_rounded: String = format!("{:.2}", x.coverage);
+
+            x.query_file.clone() + "," +
+            &x.ref_file.clone() + "," +
+            &x.start.to_string() + "," +
+            &x.end.to_string() + "," +
+            &x.strand.to_string() + "," +
+            &x.length.to_string() + "," +
+            &x.mismatches.to_string() + "," +
+            &x.gap_opens.to_string() + "," +
+            &identity_rounded.to_string() + "," +
+            &coverage_rounded.to_string() + "," +
+            &x.query_contig.clone() + "," +
+            &x.ref_contig.clone() + "\n"
+    }).collect::<String>();
+
+    rsx! {
+        textarea {
+            id: "find-result",
+            name: "find-result",
+            value: display,
+            rows: data.len(),
+            width: "99%",
+        },
+    }
+}
+
 fn format_find_result(
     result: &kbo::format::RLE,
     query_contig: String,
@@ -431,6 +465,7 @@ pub fn Find(
 
     // Options for running queries
     let mut detailed: Signal<bool> = use_signal(|| false);
+    let mut interactive: Signal<bool> = use_signal(|| true);
     let min_len: Signal<u64> = use_signal(|| 100_u64);
     let max_gap_len: Signal<u64> = use_signal(|| 0_u64);
     let max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
@@ -475,65 +510,80 @@ pub fn Find(
         }
 
         div { class: "row-run",
-              button {
-                  onclick: move |_event| {
-                      if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                          let mut find_opts = kbo::FindOpts::default();
-                          find_opts.max_error_prob = *max_error_prob.read();
-                          find_opts.max_gap_len = *max_gap_len.read() as usize;
+              div { class: "column",
+                    button {
+                        onclick: move |_event| {
+                            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                                let mut find_opts = kbo::FindOpts::default();
+                                find_opts.max_error_prob = *max_error_prob.read();
+                                find_opts.max_gap_len = *max_gap_len.read() as usize;
 
-                          let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
+                                let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
 
-                          // Options for indexing reference
-                          let mut build_opts = kbo::BuildOpts::default();
-                          build_opts.k = *kmer_size.read() as usize;
-                          build_opts.dedup_batches = *dedup_batches.read();
-                          build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+                                // Options for indexing reference
+                                let mut build_opts = kbo::BuildOpts::default();
+                                build_opts.k = *kmer_size.read() as usize;
+                                build_opts.dedup_batches = *dedup_batches.read();
+                                build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
-                          if !*detailed.read() {
+                                if !*detailed.read() {
 
-                              // TODO Work around cloning reference contig data in Find
+                                    // TODO Work around cloning reference contig data in Find
 
-                              let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
-                              indexes.push((crate::util::build_sbwt(
-                                  &[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()],
-                                  Some(build_opts),
-                              ), "ref_file".to_string(), bases));
-                          } else {
-                              refseqs.iter().for_each(|contig| {
-                                  let bases: u64 = contig.seq.len() as u64;
-                                  indexes.push((crate::util::build_sbwt(
-                                      &[contig.seq.clone()],
-                                      Some(build_opts.clone()),
-                                  ), contig.name.clone(), bases));
-                              });
-                          }
+                                    let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
+                                    indexes.push((crate::util::build_sbwt(
+                                        &[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()],
+                                        Some(build_opts),
+                                    ), "ref_file".to_string(), bases));
+                                } else {
+                                    refseqs.iter().for_each(|contig| {
+                                        let bases: u64 = contig.seq.len() as u64;
+                                        indexes.push((crate::util::build_sbwt(
+                                            &[contig.seq.clone()],
+                                            Some(build_opts.clone()),
+                                        ), contig.name.clone(), bases));
+                                    });
+                                }
 
-                          *res.write() = Vec::<FindResult>::new();
-                          indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
-                              queries.iter().for_each(|contig| {
-                                  let mut run_lengths: Vec<FindResult> = Vec::new();
+                                *res.write() = Vec::<FindResult>::new();
+                                indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
+                                    queries.iter().for_each(|contig| {
+                                        let mut run_lengths: Vec<FindResult> = Vec::new();
 
-                                  // Get local alignments for forward strand
-                                  let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
-                                  run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                                      format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
-                                  }));
+                                        // Get local alignments for forward strand
+                                        let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
+                                        run_lengths.extend(run_lengths_fwd.iter().map(|x| {
+                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
+                                        }));
 
-                                  // Add local alignments for reverse complement
-                                  let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
-                                  run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                                      format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
-                                  }));
+                                        // Add local alignments for reverse complement
+                                        let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
+                                        run_lengths.extend(run_lengths_rev.iter().map(|x| {
+                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
+                                        }));
 
-                                  // Print results with query and ref name added
-                                  res.write().extend(run_lengths);
+                                        // Print results with query and ref name added
+                                        res.write().extend(run_lengths);
 
-                              });
-                          });
-                      }
-                  },
-                  "Run analysis",
+                                    });
+                                });
+                            }
+                        },
+                        "Run analysis",
+                    }
+              }
+              div { class: "column",
+                    input {
+                        r#type: "checkbox",
+                        name: "interactive",
+                        id: "interactive",
+                        checked: true,
+                        onchange: move |_| {
+                            let old: bool = *interactive.read();
+                            *interactive.write() = !old;
+                        }
+                    },
+                    "Interactive output",
               }
         }
 
@@ -552,7 +602,11 @@ pub fn Find(
                                     ).collect::<Vec<_>>();
 
                       rsx! {
-                          SortableFindResultTable { data }
+                          if *interactive.read() {
+                              SortableFindResultTable { data }
+                          } else {
+                              CopyableFindResultTable { data }
+                          }
                       }
                   }
               }
