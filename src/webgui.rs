@@ -73,6 +73,8 @@ pub fn Kbo() -> Element {
 
     let version = env!("CARGO_PKG_VERSION").to_string();
     let footer_string = "kbo-gui v".to_string() + &version;
+    let repository = env!("CARGO_PKG_REPOSITORY").to_string();
+    let homepage = env!("CARGO_PKG_HOMEPAGE").to_string();
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -163,10 +165,10 @@ pub fn Kbo() -> Element {
                              { footer_string },
                        }
                        div { class: "column-footer",
-                             a { href: "https://docs.rs/kbo", "About" },
+                             a { href: homepage, "About" },
                        }
                        div { class: "column-footer",
-                             a { href: "https://github.com/tmaklin/kbo-gui", "Report issues" },
+                             a { href: repository, "Report issues" },
                        }
                  }
         }
