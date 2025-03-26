@@ -23,14 +23,56 @@ enum KboMode {
 }
 
 #[component]
+fn RunModeSelector(
+    kbo_mode: Signal<KboMode>,
+) -> Element {
+    rsx! {
+        // Run mode selector,
+        // for supported see KboMode
+        // // Mode `Call`
+        // input {
+        //     r#type: "button",
+        //     name: "kbo-mode",
+        //     value: "Call",
+        //     onclick: move |_| {
+        //         *kbo_mode.write() = KboMode::Call;
+        //     },
+        // }
+
+        // Mode `Find`
+        input {
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Find",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Find;
+            },
+        }
+
+        // Mode `Map`
+        input {
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Map",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Map;
+            },
+        }
+    }
+}
+
+#[component]
 pub fn Kbo() -> Element {
     let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
     let query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
 
-    let mut kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
+    let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
     let mut queries: Vec<crate::util::ContigData> = Vec::new();
     let mut refseqs: Vec<crate::util::ContigData> = Vec::new();
+
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    let footer_string = "kbo-gui v".to_string() + &version;
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -42,40 +84,9 @@ pub fn Kbo() -> Element {
               }
         }
 
-        // Run mode selector,
-        // for supported see KboMode
         div { class: "row",
               div { class: "column",
-
-                    // // Mode `Call`
-                    // input {
-                    //     r#type: "button",
-                    //     name: "kbo-mode",
-                    //     value: "Call",
-                    //     onclick: move |_| {
-                    //         *kbo_mode.write() = KboMode::Call;
-                    //     },
-                    // }
-
-                    // Mode `Find`
-                    input {
-                        r#type: "button",
-                        name: "kbo-mode",
-                        value: "Find",
-                        onclick: move |_| {
-                            *kbo_mode.write() = KboMode::Find;
-                        },
-                    }
-
-                    // Mode `Map`
-                    input {
-                        r#type: "button",
-                        name: "kbo-mode",
-                        value: "Map",
-                        onclick: move |_| {
-                            *kbo_mode.write() = KboMode::Map;
-                        },
-                    }
+                    RunModeSelector { kbo_mode }
               }
         }
 
@@ -148,5 +159,6 @@ pub fn Kbo() -> Element {
                 },
             }
         }
+        footer { { footer_string } }
     }
 }
