@@ -48,7 +48,7 @@ fn RunModeSelector(
                 *kbo_mode.write() = KboMode::Find;
             },
         }
-
+        " "
         // Mode `Map`
         input {
             r#type: "button",
@@ -78,23 +78,19 @@ pub fn Kbo() -> Element {
         document::Stylesheet { href: CSS }
 
         // kbo title + space for logo
-        div { class: "row",
-              div { class: "column",
-                    h1 { "kbo" }
-              }
+        div { class: "row-centred",
+              h1 { "kbo"}
         }
 
-        div { class: "row",
-              div { class: "column",
-                    RunModeSelector { kbo_mode }
-              }
+        div { class: "row-header",
+              RunModeSelector { kbo_mode }
         }
 
         // Input selectors
         div { class: "row",
               // Reference file
               div { class: "column",
-                    h2 {
+                    h3 {
                         "Reference file"
                     }
                     crate::components::FastaFileSelector { multiple: false, seq_data: ref_files }
@@ -109,7 +105,7 @@ pub fn Kbo() -> Element {
 
               // Query file(s)
               div { class: "column",
-                    h2 { "Query file(s)" }
+                    h3 { "Query file(s)" }
                     crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
                     {
                         if query_files.read().len() > 0 {

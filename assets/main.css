@@ -42,8 +42,21 @@ body {
 
 .row {
   display: flex;
+  align-content: flex-start;
+  text-align: left;
+  width: 100%;
+  max-width: 800px;
+}
+
+.row-header row {
+  text-align: center;
+}
+
+.row-results row {
+    width: 80%;
 }
 
 .column {
   flex: 50%;
+  width: 50%;
 }
