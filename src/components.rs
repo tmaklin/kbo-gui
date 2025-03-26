@@ -116,7 +116,7 @@ pub fn Map(
     refseqs: Vec<crate::util::ContigData>,
 ) -> Element {
 
-    let mut res = use_signal(Vec::<u8>::new);
+    let mut res = use_signal(Vec::<(String, Vec<u8>)>::new);
 
     // Options for running queries
     let mut max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
@@ -128,41 +128,50 @@ pub fn Map(
 
     rsx! {
         div { class: "row",
-              div { class: "column",
-                   details {
-                        summary { "Show query options" },
-                        div { class: "row",
-                              div { class: "column",
-                                    "Error tolerance"
-                              },
-                              div { class: "column",
-                                    input {
-                                        r#type: "number",
-                                        id: "min_len",
-                                        name: "min_len",
-                                        min: "0",
-                                        max: "1.00",
-                                        value: "0.0000001",
-                                        onchange: move |event| {
-                                            let new = event.value().parse::<f64>();
-                                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
-                                        }
-                                    },
-                              }
-                        }
+              div { class: "column-left", br {} },
+              div { class: "column-right" },
+        }
 
+        div { class: "row",
+              div { class: "column-left",
+                    details {
+                        summary { "Indexing options" }
                         BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
                     }
               }
+              div { class: "column-right",
+                    details {
+                        summary { "Alignment options" }
+                        div { class: "column",
+                              "Error tolerance"
+                        },
+                        div { class: "column",
+                              input {
+                                  r#type: "number",
+                                  id: "min_len",
+                                  name: "min_len",
+                                  min: "0",
+                                  max: "1.00",
+                                  value: "0.0000001",
+                                  onchange: move |event| {
+                                      let new = event.value().parse::<f64>();
+                                      if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                                  }
+                              },
+                        }
+                    }
+              }
+        }
+
+        div { class: "row-run",
               div { class: "column",
-                    br{}
                     button {
                         onclick: move |_event| {
                             if ref_files.read().len() > 0 && query_files.read().len() > 0 {
                                 let mut map_opts = kbo::MapOpts::default();
                                 map_opts.max_error_prob = *max_error_prob.read();
 
-                                queries.iter().for_each(|query_contig| {
+                                query_files.read().iter().zip(queries.iter()).for_each(|(query_name, query_contig)| {
                                     // Options for indexing reference
                                     let mut build_opts = kbo::BuildOpts::default();
                                     build_opts.build_select = true;
@@ -175,30 +184,39 @@ pub fn Map(
                                         Some(build_opts),
                                     );
 
-                                    refseqs.iter().for_each(|ref_contig| {
-                                        res.write().append(&mut kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone()));
-                                    });
+                                    let my_res: Vec<u8> = refseqs.iter().flat_map(|ref_contig| {
+                                        kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
+                                    }).collect();
+                                    res.write().push((query_name.iter().map(|x| *x as char).collect::<String>(), my_res));
                                 });
                             }
                         },
-                        "run!",
+                        "Run analysis",
                     }
               }
+              div { class: "column" }
+              //
+              // TODO Look into implementing an interactive alignment view for map.
+              //
+              // div { class: "column",
+              //       input {
+              //           r#type: "checkbox",
+              //           name: "interactive",
+              //           id: "interactive",
+              //           checked: true,
+              //           onchange: move |_| {
+              //               let old: bool = *interactive.read();
+              //               *interactive.write() = !old;
+              //           }
+              //       },
+              //       "Interactive output",
+              // }
         }
-        div { class: "row",
-              h2 { "Result" }
+        div { class: "row-results",
               if res.read().len() > 0 {
                   {
                       rsx! {
-                          div {
-                              code {
-                                  { ">Query" }
-                                  br {}
-                                  {
-                                      std::str::from_utf8(res.read().as_slice()).expect("UTF-8").to_string()
-                                  }
-                              }
-                          }
+                          CopyableMapResult { data: res.read().to_vec() }
                       }
                   }
               }
@@ -289,6 +307,38 @@ fn CopyableFindResultTable(
             value: display,
             rows: data.len(),
             width: "99%",
+        },
+    }
+}
+
+#[component]
+fn CopyableMapResult(
+    data: Vec<(String, Vec::<u8>)>,
+) -> Element {
+
+    let mut total_len = 0;
+    let display = data.iter().map(|(seq, contents)| {
+        let mut counter = 0;
+        total_len += contents.len();
+        seq.clone() + "\n" + &contents.iter().map(|x| {
+            counter += 1;
+            if counter % 80 == 0 {
+                counter = 0;
+                (*x as char).to_string() + "\n"
+            } else {
+                (*x as char).to_string()
+            }
+        }).collect::<String>()
+            + "\n"
+    }).collect::<String>();
+
+    rsx! {
+        textarea {
+            id: "find-result",
+            name: "find-result",
+            value: display,
+            rows: total_len.div_ceil(80),
+            width: "95%",
         },
     }
 }
