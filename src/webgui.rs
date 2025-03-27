@@ -92,6 +92,9 @@ pub fn Kbo() -> Element {
     let repository = env!("CARGO_PKG_REPOSITORY").to_string();
     let homepage = env!("CARGO_PKG_HOMEPAGE").to_string();
 
+    let mut ref_error: Signal<String> = use_signal(String::new);
+    let mut query_error: Signal<String> = use_signal(String::new);
+
     rsx! {
         document::Stylesheet { href: CSS }
 
@@ -116,7 +119,11 @@ pub fn Kbo() -> Element {
                           {
                               if ref_files.read().len() > 0 {
                                   ref_files.read().iter().for_each(|seq| {
-                                      refseqs.extend(crate::util::read_seq_data(seq));
+                                    let data = crate::util::read_seq_data(seq);
+                                    match data {
+                                        Ok(data) => { *ref_error.write() = String::new(); refseqs.extend(data) },
+                                        Err(e) => { *ref_error.write() = e.msg; },
+                                    }
                                   });
                               }
                           }
@@ -129,9 +136,25 @@ pub fn Kbo() -> Element {
                           {
                               if query_files.read().len() > 0 {
                                   query_files.read().iter().for_each(|query| {
-                                      queries.extend(crate::util::read_seq_data(query));
+                                    let data = crate::util::read_seq_data(query);
+                                    match data {
+                                        Ok(data) => { *query_error.write() = String::new(); queries.extend(data)},
+                                        Err(e) => { *query_error.write() = e.msg; },
+                                    }
                                   })
                               }
+                          }
+                    }
+              }
+              div { class: "row",
+                    div { class: "column-left",
+                          if ref_error.read().len() > 0 {
+                            { ref_error.read().to_string() }
+                          }
+                    }
+                    div { class: "column-right",
+                          if query_error.read().len() > 0 {
+                            { query_error.read().to_string() }
                           }
                     }
               }
