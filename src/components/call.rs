@@ -11,45 +11,41 @@
 // the MIT license, <LICENSE-MIT> or <http://opensource.org/licenses/MIT>,
 // at your option.
 //
-use dioxus::prelude::*;
 use crate::dioxus_sortable::*;
-
-use needletail::Sequence;
-
 use crate::components::common::BuildOptsSelector;
+
+use chrono::offset::Local;
+use dioxus::prelude::*;
+use kbo::variant_calling::Variant;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 enum CallResultField {
-    Query,
-    Ref,
+    Chrom,
     #[default]
-    QStart,
-    QEnd,
-    Strand,
-    Length,
-    Mismatches,
-    GapOpens,
-    Identity,
-    Coverage,
-    QContig,
-    RContig,
+    Pos,
+    Id,
+    Ref,
+    Alt,
+    Qual,
+    Filter,
+    Info,
+    Format,
+    Unknown,
 }
 
 impl PartialOrdBy<CallResult> for CallResultField {
     fn partial_cmp_by(&self, a: &CallResult, b: &CallResult) -> Option<std::cmp::Ordering> {
         match self {
-            CallResultField::Query => a.query_file.partial_cmp(&b.query_file),
-            CallResultField::Ref => a.ref_file.partial_cmp(&b.ref_file),
-            CallResultField::QStart => a.start.partial_cmp(&b.start),
-            CallResultField::QEnd => a.end.partial_cmp(&b.end),
-            CallResultField::Strand => a.strand.partial_cmp(&b.strand),
-            CallResultField::Length => a.length.partial_cmp(&b.length),
-            CallResultField::Mismatches => a.mismatches.partial_cmp(&b.mismatches),
-            CallResultField::GapOpens => a.gap_opens.partial_cmp(&b.gap_opens),
-            CallResultField::Identity => a.identity.partial_cmp(&b.identity),
-            CallResultField::Coverage => a.coverage.partial_cmp(&b.coverage),
-            CallResultField::QContig => a.query_contig.partial_cmp(&b.query_contig),
-            CallResultField::RContig => a.ref_contig.partial_cmp(&b.ref_contig),
+            CallResultField::Chrom => a.chromosome.partial_cmp(&b.chromosome),
+            CallResultField::Pos => a.position.partial_cmp(&b.position),
+            CallResultField::Id => a.id.partial_cmp(&b.id),
+            CallResultField::Ref => a.ref_base.partial_cmp(&b.ref_base),
+            CallResultField::Alt => a.alt_base.partial_cmp(&b.alt_base),
+            CallResultField::Qual => a.qual.partial_cmp(&b.qual),
+            CallResultField::Filter => a.filter.partial_cmp(&b.filter),
+            CallResultField::Info => a.info.partial_cmp(&b.info),
+            CallResultField::Format => a.format.partial_cmp(&b.format),
+            CallResultField::Unknown => a.unknown.partial_cmp(&b.unknown),
         }
     }
 }
@@ -67,18 +63,16 @@ impl Sortable for CallResultField {
 
 #[derive(Clone, Debug, PartialEq)]
 struct CallResult {
-    query_file: String,
-    ref_file: String,
-    start: u64,
-    end: u64,
-    strand: char,
-    length: u64,
-    mismatches: u64,
-    gap_opens: u64,
-    identity: f64,
-    coverage: f64,
-    query_contig: String,
-    ref_contig: String,
+    chromosome: String,
+    position: u64,
+    id: String,
+    ref_base: String,
+    alt_base: String,
+    qual: String,
+    filter: String,
+    info: String,
+    format: String,
+    unknown: String,
 }
 
 #[component]
@@ -92,39 +86,33 @@ fn SortableCallResultTable(
         table {
             thead {
                 tr {
-                    Th { sorter: sorter, field: CallResultField::Query, "query" }
-                    Th { sorter: sorter, field: CallResultField::Ref, "ref" }
-                    Th { sorter: sorter, field: CallResultField::QStart, "q.start" }
-                    Th { sorter: sorter, field: CallResultField::QEnd, "q.end" }
-                    Th { sorter: sorter, field: CallResultField::Strand, "strand" }
-                    Th { sorter: sorter, field: CallResultField::Length, "length" }
-                    Th { sorter: sorter, field: CallResultField::Mismatches, "mismatches" }
-                    Th { sorter: sorter, field: CallResultField::GapOpens, "gap_opens" }
-                    Th { sorter: sorter, field: CallResultField::Identity, "identity" }
-                    Th { sorter: sorter, field: CallResultField::Coverage, "coverage" }
-                    Th { sorter: sorter, field: CallResultField::QContig, "query.contig" }
-                    Th { sorter: sorter, field: CallResultField::RContig, "ref.contig" }
+                    Th { sorter: sorter, field: CallResultField::Chrom, "CHROM" }
+                    Th { sorter: sorter, field: CallResultField::Pos, "POS" }
+                    Th { sorter: sorter, field: CallResultField::Id, "ID" }
+                    Th { sorter: sorter, field: CallResultField::Ref, "REF" }
+                    Th { sorter: sorter, field: CallResultField::Alt, "ALT" }
+                    Th { sorter: sorter, field: CallResultField::Qual, "QUAL" }
+                    Th { sorter: sorter, field: CallResultField::Filter, "FILTER" }
+                    Th { sorter: sorter, field: CallResultField::Info, "INFO" }
+                    Th { sorter: sorter, field: CallResultField::Format, "FORMAT" }
+                    Th { sorter: sorter, field: CallResultField::Unknown, "unknown" }
                 }
             }
             tbody {
                 {
                     data.iter().map(|row| {
-                        let identity_rounded: String = format!("{:.2}", row.identity);
-                        let coverage_rounded: String = format!("{:.2}", row.coverage);
                         rsx! {
                             tr {
-                                td { "{row.query_file}" }
-                                td { "{row.ref_file}" }
-                                td { "{row.start}" }
-                                td { "{row.end}" }
-                                td { "{row.strand}" }
-                                td { "{row.length}" }
-                                td { "{row.mismatches}" }
-                                td { "{row.gap_opens}" }
-                                td { "{identity_rounded}" }
-                                td { "{coverage_rounded}" }
-                                td { "{row.query_contig}" }
-                                td { "{row.ref_contig}" }
+                                td { "{row.chromosome}" }
+                                td { "{row.position}" }
+                                td { "{row.id}" }
+                                td { "{row.ref_base}" }
+                                td { "{row.alt_base}" }
+                                td { "{row.qual}" }
+                                td { "{row.filter}" }
+                                td { "{row.info}" }
+                                td { "{row.format}" }
+                                td { "{row.unknown}" }
                             }
                         }
                     })
@@ -139,89 +127,121 @@ fn CopyableCallResultTable(
     data: Vec::<CallResult>,
 ) -> Element {
 
-    let display = data.iter().map(|x| {
-        let identity_rounded: String = format!("{:.2}", x.identity);
-        let coverage_rounded: String = format!("{:.2}", x.coverage);
-
-            x.query_file.clone() + "," +
-            &x.ref_file.clone() + "," +
-            &x.start.to_string() + "," +
-            &x.end.to_string() + "," +
-            &x.strand.to_string() + "," +
-            &x.length.to_string() + "," +
-            &x.mismatches.to_string() + "," +
-            &x.gap_opens.to_string() + "," +
-            &identity_rounded.to_string() + "," +
-            &coverage_rounded.to_string() + "," +
-            &x.query_contig.clone() + "," +
-            &x.ref_contig.clone() + "\n"
+    let display = format_call_header() +
+        &data.iter().map(|x| {
+        x.chromosome.clone() + "\t" +
+            &x.position.to_string() + "\t" +
+            &x.id.to_string() + "\t" +
+            &x.ref_base.to_string() + "\t" +
+            &x.alt_base.to_string() + "\t" +
+            &x.qual.to_string() + "\t" +
+            &x.filter.to_string() + "\t" +
+            &x.info.to_string() + "\t" +
+            &x.format.clone() + "\t" +
+            &x.unknown.clone() + "\n"
     }).collect::<String>();
 
     rsx! {
         textarea {
-            id: "find-result",
-            name: "find-result",
+            id: "call-result",
+            name: "call-result",
             value: display,
-            rows: data.len(),
-            width: "99%",
+            rows: data.len() + 10,
+            width: "98%",
         },
     }
 }
 
-fn format_find_result(
-    result: &kbo::format::RLE,
-    query_contig: String,
-    ref_contig: String,
-    ref_bases: u64,
-    strand: char,
+fn split_flanking_variants(
+    ref_var: &[u8],
+    query_var: &[u8],
+    query_pos: usize,
+) -> Option<(Variant, Variant)> {
+    let ref_len = ref_var.len();
+    if ref_len != query_var.len() || ref_len == 1 {
+        return None
+    }
+
+    let first_mismatch = ref_var[0] != query_var[0];
+    let last_mismatch = ref_var[ref_len - 1] != query_var[ref_len - 1];
+
+    let mut middle_match = true;
+    for pos in 1..(ref_len - 1) {
+        middle_match &= ref_var[pos] == query_var[pos];
+    }
+
+    if first_mismatch && last_mismatch && middle_match {
+        Some(
+            (Variant{query_chars: vec![query_var[0]], ref_chars: vec![ref_var[0]], query_pos},
+             Variant{query_chars: vec![query_var[ref_len - 1]], ref_chars: vec![ref_var[ref_len - 1]], query_pos: query_pos + ref_len - 1})
+        )
+    } else {
+        None
+    }
+}
+
+fn format_call_result(
+    variant: &Variant,
+    ref_seq: &[u8],
+    contig: &str,
 ) -> CallResult {
-    let aln_len = result.end - result.start + 1;
-    let coverage = (aln_len as f64)/(ref_bases as f64) * 100_f64;
-    let identity = (result.matches as f64)/(aln_len as f64) * 100_f64;
+    let is_indel = variant.ref_chars.len() != variant.query_chars.len();
+    let mut pos = variant.query_pos as u64;
+
+    let (alt_bases, ref_bases) = if is_indel {
+        // Add nucleotide preceding an indel to the output
+        // (.vcf does not like empty bases in REF or ALT)
+        //
+        let alt_bases = (ref_seq[variant.query_pos - 1] as char).to_string() + &variant.ref_chars.iter().map(|nt| *nt as char).collect::<String>();
+        let ref_bases = (ref_seq[variant.query_pos - 1] as char).to_string() + &variant.query_chars.iter().map(|nt| *nt as char).collect::<String>();
+        // We added 1 base so decrement position by 1
+        pos -= 1;
+        (alt_bases, ref_bases)
+    } else {
+        let alt_bases = variant.ref_chars.iter().map(|nt| *nt as char).collect::<String>();
+        let ref_bases = variant.query_chars.iter().map(|nt| *nt as char).collect::<String>();
+        (alt_bases, ref_bases)
+    };
+
+    let info = if variant.ref_chars.len() != 1 || variant.query_chars.len() != 1 {
+        "INDEL"
+    } else {
+        "."
+    }.to_string();
 
     CallResult {
-        query_file: "query".to_string(),
-        ref_file: "ref".to_string(),
-        start: result.start as u64,
-        end: result.end as u64,
-        strand,
-        length: (result.end - result.start + 1) as u64,
-        mismatches: result.mismatches as u64,
-        gap_opens: result.gap_opens as u64,
-        identity,
-        coverage,
-        query_contig,
-        ref_contig,
+        chromosome: contig.to_string(),
+        position: pos,
+        id: ".".to_string(),
+        ref_base: ref_bases,
+        alt_base: alt_bases,
+        qual: ".".to_string(),
+        filter: ".".to_string(),
+        info,
+        format: "GT".to_string(),
+        unknown: "1".to_string(),
     }
 
 }
 
+fn format_call_header(
+
+) -> String {
+    let current_date = Local::now().format("%Y%m%d").to_string();
+    "##fileformat=VCFv4.4\n".to_string() +
+        "##contig=<ID=PLACEHOLDER,length=99999>\n" +
+        "##contig=<ID=PLACEHOLDER,length=99999>\n" +
+        "##fileDate=" + &current_date.to_string() + "\n" +
+        "##source=kbo-gui v" + env!("CARGO_PKG_VERSION") + "\n" +
+        "##reference=PLACEHOLDER\n" +
+        "##phasing=none\n"
+}
+
 #[component]
 pub fn CallOptsSelector(
-    min_len: Signal<u64>,
-    max_gap_len: Signal<u64>,
     max_error_prob: Signal<f64>,
 ) -> Element {
     rsx! {
-        div { class: "row-contents",
-              div { class: "column",
-                    "Max. gap size",
-              }
-              div { class: "column",
-                    input {
-                        r#type: "number",
-                        id: "max_gap_len",
-                        name: "max_gap_len",
-                        min: "0",
-                        max: "5000",
-                        value: "0",
-                        onchange: move |event| {
-                            let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { max_gap_len.set(new_len) };
-                        }
-                    },
-              }
-        }
         div { class: "row-contents",
               div { class: "column",
                     "Error tolerance",
@@ -241,25 +261,6 @@ pub fn CallOptsSelector(
                     },
               }
         }
-        div { class: "row-contents",
-              div { class: "column",
-                    "Min. length",
-              }
-              div { class: "column",
-                    input {
-                        r#type: "number",
-                        id: "min_len",
-                        name: "min_len",
-                        min: "0",
-                        max: "5000",
-                        value: "100",
-                        onchange: move |event| {
-                            let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { min_len.set(new_len) };
-                        }
-                    }
-              }
-        }
     }
 }
 
@@ -276,14 +277,19 @@ pub fn Call(
     // Options for running queries
     let mut detailed: Signal<bool> = use_signal(|| false);
     let mut interactive: Signal<bool> = use_signal(|| true);
-    let min_len: Signal<u64> = use_signal(|| 100_u64);
-    let max_gap_len: Signal<u64> = use_signal(|| 0_u64);
     let max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
 
     // Options for indexing reference
-    let kmer_size: Signal<u32> = use_signal(|| 31);
+    let kmer_size: Signal<u32> = use_signal(|| 51);
     let dedup_batches: Signal<bool> = use_signal(|| true);
     let prefix_precalc: Signal<u32> = use_signal(|| 8);
+
+    let ref_file = if ref_files.read().len() > 0 {
+         // This function should only receive 1 reference file
+        "chromosome".to_string()
+    } else {
+        "".to_string()
+    };
 
     rsx! {
         div { class: "row",
@@ -314,7 +320,7 @@ pub fn Call(
               div { class: "column-right",
                     details {
                         summary { "Alignment options" }
-                        CallOptsSelector { min_len, max_gap_len, max_error_prob }
+                        CallOptsSelector { max_error_prob }
                     }
               }
         }
@@ -324,58 +330,32 @@ pub fn Call(
                     button {
                         onclick: move |_event| {
                             if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                                let mut find_opts = kbo::FindOpts::default();
-                                find_opts.max_error_prob = *max_error_prob.read();
-                                find_opts.max_gap_len = *max_gap_len.read() as usize;
+                                // Options for indexing
+                                let mut call_opts = kbo::CallOpts::default();
+                                call_opts.max_error_prob = *max_error_prob.read();
+                                call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
+                                call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
+                                call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
-                                let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
+                                let build_opts = call_opts.sbwt_build_opts.clone();
 
-                                // Options for indexing reference
-                                let mut build_opts = kbo::BuildOpts::default();
-                                build_opts.k = *kmer_size.read() as usize;
-                                build_opts.dedup_batches = *dedup_batches.read();
-                                build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                if !*detailed.read() {
-
-                                    // TODO Work around cloning reference contig data in Call
-
-                                    let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
-                                    indexes.push((crate::util::build_sbwt(
-                                        &[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()],
-                                        Some(build_opts),
-                                    ), "ref_file".to_string(), bases));
-                                } else {
-                                    refseqs.iter().for_each(|contig| {
-                                        let bases: u64 = contig.seq.len() as u64;
-                                        indexes.push((crate::util::build_sbwt(
-                                            &[contig.seq.clone()],
-                                            Some(build_opts.clone()),
-                                        ), contig.name.clone(), bases));
-                                    });
-                                }
+                                let (sbwt_query, lcs_query) = crate::util::build_sbwt(&queries.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(), Some(build_opts));
 
                                 *res.write() = Vec::<CallResult>::new();
-                                indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
-                                    queries.iter().for_each(|contig| {
-                                        let mut run_lengths: Vec<CallResult> = Vec::new();
+                                refseqs.iter().for_each(|contig| {
+                                    let variants = kbo::call(&sbwt_query, &lcs_query, &contig.seq, call_opts.clone());
+                                    res.write().extend(variants.iter().flat_map(|variant| {
 
-                                        // Get local alignments for forward strand
-                                        let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
-                                        run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
-                                        }));
-
-                                        // Add local alignments for reverse complement
-                                        let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
-                                        run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
-                                        }));
-
-                                        // Print results with query and ref name added
-                                        res.write().extend(run_lengths);
-
-                                    });
+                                        let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
+                                        if flanking.is_some() {
+                                            let (var1, var2) = flanking.unwrap();
+                                            let record1 = format_call_result(&var1, &contig.seq, &ref_file);
+                                            let record2 = format_call_result(&var2, &contig.seq, &ref_file);
+                                            vec![record1, record2]
+                                        } else {
+                                            vec![format_call_result(variant, &contig.seq, &ref_file)]
+                                        }
+                                    }));
                                 });
                             }
                         },
@@ -400,17 +380,7 @@ pub fn Call(
         div { class: "row-results",
               if res.read().len() > 0 {
                   {
-                      let data = res.read()
-                                    .to_vec()
-                                    .iter()
-                                    .filter_map(|x|
-                                                if x.length >= *min_len.read() {
-                                                    Some(x.clone())
-                                                } else {
-                                                    None
-                                                }
-                                    ).collect::<Vec<_>>();
-
+                      let data = res.read().to_vec();
                       rsx! {
                           if *interactive.read() {
                               SortableCallResultTable { data }

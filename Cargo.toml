@@ -12,6 +12,9 @@ kbo = "0.5.0"
 sbwt = "0.3.7"
 tokio = { version = "1.40.0", features = ["rt"] }
 
+## .vcf writing
+chrono = "0.4.40"
+
 # Debug
 dioxus-logger = "0.6.2"
 

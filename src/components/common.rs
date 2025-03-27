@@ -12,9 +12,6 @@
 // at your option.
 //
 use dioxus::prelude::*;
-use crate::dioxus_sortable::*;
-
-use needletail::Sequence;
 
 #[component]
 pub fn FastaFileSelector(
@@ -64,7 +61,7 @@ pub fn BuildOptsSelector(
                         name: "kmer_size",
                         min: "2",
                         max: "256",
-                        value: "31",
+                        value: kmer_size.read().to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u32>();
                             if let Ok(new_k) = new { kmer_size.set(new_k.clamp(2, 255)) };
@@ -83,7 +80,7 @@ pub fn BuildOptsSelector(
                       name: "prefix_precalc",
                       min: "1",
                       max: "255",
-                      value: "8",
+                      value: prefix_precalc.read().to_string(),
                       onchange: move |event| {
                           let new = event.value().parse::<u32>();
                           if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
@@ -100,7 +97,7 @@ pub fn BuildOptsSelector(
                       r#type: "checkbox",
                       name: "dedup_batches",
                       id: "dedup_batches",
-                      checked: true,
+                      checked: dedup_batches.read().to_string(),
                       onchange: move |_| {
                           let old: bool = *dedup_batches.read();
                           *dedup_batches.write() = !old;
