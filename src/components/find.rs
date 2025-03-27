@@ -16,6 +16,8 @@ use crate::dioxus_sortable::*;
 
 use needletail::Sequence;
 
+use crate::components::common::BuildOptsSelector;
+
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 enum FindResultField {
     Query,
@@ -77,151 +79,6 @@ struct FindResult {
     coverage: f64,
     query_contig: String,
     ref_contig: String,
-}
-
-#[component]
-pub fn FastaFileSelector(
-    multiple: bool,
-    seq_data: Signal<Vec<Vec<u8>>>) -> Element {
-    rsx! {
-        input {
-            // tell the input to pick a file
-            r#type: "file",
-            // list the accepted extensions
-            accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-            // pick multiple files
-            multiple: multiple,
-            onchange: move |evt| {
-                async move {
-                    if let Some(file_engine) = &evt.files() {
-                        let files = file_engine.files();
-                        for file_name in &files {
-                            if let Some(file) = file_engine.read_file(file_name).await
-                            {
-                                seq_data.write().push(file.to_vec());
-                            }
-                        }
-                    }
-                }
-            },
-        }
-    }
-}
-
-#[component]
-pub fn Map(
-    ref_files: Signal<Vec<Vec<u8>>>,
-    query_files: Signal<Vec<Vec<u8>>>,
-    queries: Vec<crate::util::ContigData>,
-    refseqs: Vec<crate::util::ContigData>,
-) -> Element {
-
-    let mut res = use_signal(Vec::<(String, Vec<u8>)>::new);
-
-    // Options for running queries
-    let mut max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
-
-    // Options for indexing reference
-    let kmer_size: Signal<u32> = use_signal(|| 31);
-    let dedup_batches: Signal<bool> = use_signal(|| true);
-    let prefix_precalc: Signal<u32> = use_signal(|| 8);
-
-    rsx! {
-        div { class: "row",
-              div { class: "column-left", br {} },
-              div { class: "column-right" },
-        }
-
-        div { class: "row",
-              div { class: "column-left",
-                    details {
-                        summary { "Indexing options" }
-                        BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
-                    }
-              }
-              div { class: "column-right",
-                    details {
-                        summary { "Alignment options" }
-                        div { class: "column",
-                              "Error tolerance"
-                        },
-                        div { class: "column",
-                              input {
-                                  r#type: "number",
-                                  id: "min_len",
-                                  name: "min_len",
-                                  min: "0",
-                                  max: "1.00",
-                                  value: "0.0000001",
-                                  onchange: move |event| {
-                                      let new = event.value().parse::<f64>();
-                                      if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
-                                  }
-                              },
-                        }
-                    }
-              }
-        }
-
-        div { class: "row-run",
-              div { class: "column",
-                    button {
-                        onclick: move |_event| {
-                            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
-                                let mut map_opts = kbo::MapOpts::default();
-                                map_opts.max_error_prob = *max_error_prob.read();
-
-                                query_files.read().iter().zip(queries.iter()).for_each(|(query_name, query_contig)| {
-                                    // Options for indexing reference
-                                    let mut build_opts = kbo::BuildOpts::default();
-                                    build_opts.build_select = true;
-                                    build_opts.k = *kmer_size.read() as usize;
-                                    build_opts.dedup_batches = *dedup_batches.read();
-                                    build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                    let (sbwt, lcs) = crate::util::build_sbwt(
-                                        &[query_contig.seq.clone()],
-                                        Some(build_opts),
-                                    );
-
-                                    let my_res: Vec<u8> = refseqs.iter().flat_map(|ref_contig| {
-                                        kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
-                                    }).collect();
-                                    res.write().push((query_name.iter().map(|x| *x as char).collect::<String>(), my_res));
-                                });
-                            }
-                        },
-                        "Run analysis",
-                    }
-              }
-              div { class: "column" }
-              //
-              // TODO Look into implementing an interactive alignment view for map.
-              //
-              // div { class: "column",
-              //       input {
-              //           r#type: "checkbox",
-              //           name: "interactive",
-              //           id: "interactive",
-              //           checked: true,
-              //           onchange: move |_| {
-              //               let old: bool = *interactive.read();
-              //               *interactive.write() = !old;
-              //           }
-              //       },
-              //       "Interactive output",
-              // }
-        }
-        div { class: "row-results",
-              if res.read().len() > 0 {
-                  {
-                      rsx! {
-                          CopyableMapResult { data: res.read().to_vec() }
-                      }
-                  }
-              }
-        }
-    }
 }
 
 #[component]
@@ -311,38 +168,6 @@ fn CopyableFindResultTable(
     }
 }
 
-#[component]
-fn CopyableMapResult(
-    data: Vec<(String, Vec::<u8>)>,
-) -> Element {
-
-    let mut total_len = 0;
-    let display = data.iter().map(|(seq, contents)| {
-        let mut counter = 0;
-        total_len += contents.len();
-        seq.clone() + "\n" + &contents.iter().map(|x| {
-            counter += 1;
-            if counter % 80 == 0 {
-                counter = 0;
-                (*x as char).to_string() + "\n"
-            } else {
-                (*x as char).to_string()
-            }
-        }).collect::<String>()
-            + "\n"
-    }).collect::<String>();
-
-    rsx! {
-        textarea {
-            id: "find-result",
-            name: "find-result",
-            value: display,
-            rows: total_len.div_ceil(80),
-            width: "95%",
-        },
-    }
-}
-
 fn format_find_result(
     result: &kbo::format::RLE,
     query_contig: String,
@@ -369,71 +194,6 @@ fn format_find_result(
         ref_contig,
     }
 
-}
-
-#[component]
-pub fn BuildOptsSelector(
-    kmer_size: Signal<u32>,
-    dedup_batches: Signal<bool>,
-    prefix_precalc: Signal<u32>,
-) -> Element {
-    rsx! {
-        div { class: "row-contents",
-              div { class: "column",
-                    "k-mer size",
-              }
-              div { class: "column",
-                    input {
-                        r#type: "number",
-                        id: "kmer_size",
-                        name: "kmer_size",
-                        min: "2",
-                        max: "256",
-                        value: "31",
-                        onchange: move |event| {
-                            let new = event.value().parse::<u32>();
-                            if let Ok(new_k) = new { kmer_size.set(new_k.clamp(2, 255)) };
-                        }
-                    },
-              }
-        }
-        div { class: "row-contents",
-              div { class: "column",
-                    "Prefix precalc",
-              }
-              div { class: "column",
-                  input {
-                      r#type: "number",
-                      id: "prefix_precalc",
-                      name: "prefix_precalc",
-                      min: "1",
-                      max: "255",
-                      value: "8",
-                      onchange: move |event| {
-                          let new = event.value().parse::<u32>();
-                          if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
-                      }
-                  },
-              }
-        }
-        div { class: "row-contents",
-              div { class: "column",
-                    "Deduplicate",
-              }
-              div { class: "column",
-                  input {
-                      r#type: "checkbox",
-                      name: "dedup_batches",
-                      id: "dedup_batches",
-                      checked: true,
-                      onchange: move |_| {
-                          let old: bool = *dedup_batches.read();
-                          *dedup_batches.write() = !old;
-                      }
-                  },
-              }
-        }
-    }
 }
 
 #[component]

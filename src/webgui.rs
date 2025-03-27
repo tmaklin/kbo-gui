@@ -13,6 +13,10 @@
 //
 use dioxus::prelude::*;
 
+use crate::components::common::FastaFileSelector;
+use crate::components::find::Find;
+use crate::components::map::Map;
+
 static CSS: Asset = asset!("/assets/main.css");
 
 #[derive(Default, PartialEq)]
@@ -96,7 +100,7 @@ pub fn Kbo() -> Element {
                           h3 {
                               "Reference file"
                           }
-                          crate::components::FastaFileSelector { multiple: false, seq_data: ref_files }
+                          FastaFileSelector { multiple: false, seq_data: ref_files }
                           {
                               if ref_files.read().len() > 0 {
                                   ref_files.read().iter().for_each(|seq| {
@@ -109,7 +113,7 @@ pub fn Kbo() -> Element {
                     // Query file(s)
                     div { class: "column-right",
                           h3 { "Query file(s)" }
-                          crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
+                          FastaFileSelector { multiple: true, seq_data: query_files }
                           {
                               if query_files.read().len() > 0 {
                                   query_files.read().iter().for_each(|query| {
@@ -125,11 +129,10 @@ pub fn Kbo() -> Element {
               {
                   match *kbo_mode.read() {
 
-                      // Why does this complain of unreachable patterns?
                       KboMode::Find => {
                           // Mode `Find`
                           rsx! {
-                              crate::components::Find {
+                              Find {
                                   ref_files,
                                   query_files,
                                   queries,
@@ -140,19 +143,11 @@ pub fn Kbo() -> Element {
 
                       KboMode::Map => {
                           rsx! {
-                              crate::components::Map {
+                              Map {
                                   ref_files,
                                   query_files,
                                   queries,
                                   refseqs,
-                              }
-                          }
-                      },
-
-                      _ => {
-                          rsx! {
-                              div {
-                                  { "Unknown mode; check your selection." }
                               }
                           }
                       },
