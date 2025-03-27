@@ -13,5 +13,8 @@
 //
 
 pub mod common;
+
+// Commands
+pub mod call;
 pub mod find;
 pub mod map;

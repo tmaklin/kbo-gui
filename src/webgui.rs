@@ -14,6 +14,7 @@
 use dioxus::prelude::*;
 
 use crate::components::common::FastaFileSelector;
+use crate::components::call::Call;
 use crate::components::find::Find;
 use crate::components::map::Map;
 
@@ -22,6 +23,7 @@ static CSS: Asset = asset!("/assets/main.css");
 #[derive(Default, PartialEq)]
 enum KboMode {
     #[default]
+    Call,
     Find,
     Map,
 }
@@ -43,6 +45,16 @@ fn RunModeSelector(
         //     },
         // }
 
+      // Mode `Call`
+        input {
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Call",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Call;
+            },
+        }
+        " "
         // Mode `Find`
         input {
             r#type: "button",
@@ -112,8 +124,8 @@ pub fn Kbo() -> Element {
 
                     // Query file(s)
                     div { class: "column-right",
-                          h3 { "Query file(s)" }
-                          FastaFileSelector { multiple: true, seq_data: query_files }
+                          h3 { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
+                          FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
                           {
                               if query_files.read().len() > 0 {
                                   query_files.read().iter().for_each(|query| {
@@ -128,6 +140,18 @@ pub fn Kbo() -> Element {
               // based on which KboMode is selected.
               {
                   match *kbo_mode.read() {
+
+                    KboMode::Call => {
+                          // Mode `Find`
+                          rsx! {
+                              Call {
+                                  ref_files,
+                                  query_files,
+                                  queries,
+                                  refseqs,
+                              }
+                          }
+                      },
 
                       KboMode::Find => {
                           // Mode `Find`
