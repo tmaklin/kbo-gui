@@ -25,6 +25,8 @@ pub fn Map(
 
     // Options for running queries
     let mut max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
+    let mut do_vc: Signal<bool> = use_signal(|| true);
+    let mut do_gapfill: Signal<bool> = use_signal(|| true);
 
     // Options for indexing reference
     let kmer_size: Signal<u32> = use_signal(|| 31);
@@ -49,6 +51,7 @@ pub fn Map(
               div { class: "column-right",
                     details {
                         summary { "Alignment options" }
+                        div { class: "row-contents",
                         div { class: "column",
                               "Error tolerance"
                         },
@@ -66,6 +69,41 @@ pub fn Map(
                                   }
                               },
                         }
+                        }
+                        div { class: "row-contents",
+                        div { class: "column",
+                              "Variant calling"
+                        },
+                        div { class: "column",
+                              input {
+                                  r#type: "checkbox",
+                                  id: "do_vc",
+                                  name: "do_vc",
+                                  checked: *do_vc.read(),
+                                  onchange: move |_| {
+                                      let old: bool = *do_vc.read();
+                                      *do_vc.write() = !old;
+                                  }
+                              },
+                        }
+                        }
+                        div { class: "row-contents",
+                        div { class: "column",
+                              "Gap filling"
+                        },
+                        div { class: "column",
+                              input {
+                                  r#type: "checkbox",
+                                  id: "do_gapfill",
+                                  name: "do_gapfill",
+                                  checked: *do_gapfill.read(),
+                                  onchange: move |_| {
+                                      let old: bool = *do_gapfill.read();
+                                      *do_gapfill.write() = !old;
+                                  }
+                              },
+                        }
+                        }
                     }
               }
         }
@@ -81,6 +119,8 @@ pub fn Map(
 
                                 let mut map_opts = kbo::MapOpts::default();
                                 map_opts.max_error_prob = *max_error_prob.read();
+                                map_opts.call_variants = *do_vc.read();
+                                map_opts.fill_gaps = *do_vc.read();
 
                                 queries.iter().for_each(|(query_file, query_contig)| {
                                     // Options for indexing reference

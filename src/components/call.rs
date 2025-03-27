@@ -280,7 +280,6 @@ pub fn Call(
     let mut res = use_signal(Vec::<CallResult>::new);
 
     // Options for running queries
-    let mut detailed: Signal<bool> = use_signal(|| false);
     let mut interactive: Signal<bool> = use_signal(|| true);
     let max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
 
@@ -292,24 +291,12 @@ pub fn Call(
     let mut contig_info: Signal<Vec<(String, usize)>> = use_signal(|| Vec::with_capacity(reference.1.len()));
 
     let mut res_error: Signal<String> = use_signal(String::new);
+    let mut show_spinner: Signal<bool> = use_signal(|| false);
 
     rsx! {
         div { class: "row",
-              div { class: "column-left",
-                    input {
-                        r#type: "checkbox",
-                        name: "detailed",
-                        id: "detailed",
-                        checked: false,
-                        onchange: move |_| {
-                            let old: bool = *detailed.read();
-                            *detailed.write() = !old;
-                        }
-                    },
-                    "Split reference by contig",
-              }
-
-              div { class: "column-right" }
+              div { class: "column-left", br {} },
+              div { class: "column-right" },
         }
 
         div { class: "row",
@@ -332,6 +319,8 @@ pub fn Call(
                     button {
                         onclick: move |_event| {
                             if !reference.1.is_empty() && !queries.is_empty() {
+                                *show_spinner.write() = true;
+
                                 // Clear old results
                                 res.write().clear();
                                 contig_info.write().clear();
@@ -376,10 +365,15 @@ pub fn Call(
                                             vec![format_call_result(variant, &contig.seq, contig_name)]
                                         }
                                     }));
+
+                                    *show_spinner.write() = false;
                                 });
                             }
                         },
                         "Run analysis",
+                    }
+                    if *show_spinner.read() {
+                        span { class: "loader" },
                     }
               }
               div { class: "column",

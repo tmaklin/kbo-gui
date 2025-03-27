@@ -36,6 +36,7 @@ fn RunModeSelector(
 
       // Mode `Call`
         input {
+            class: if *kbo_mode.read() == KboMode::Call { "test-active"} else { "test" },
             r#type: "button",
             name: "kbo-mode",
             value: "Call",
@@ -46,6 +47,7 @@ fn RunModeSelector(
         " "
         // Mode `Find`
         input {
+            class: if *kbo_mode.read() == KboMode::Find { "test-active"} else { "test" },
             r#type: "button",
             name: "kbo-mode",
             value: "Find",
@@ -56,6 +58,7 @@ fn RunModeSelector(
         " "
         // Mode `Map`
         input {
+            class: if *kbo_mode.read() == KboMode::Map { "test-active"} else { "test" },
             r#type: "button",
             name: "kbo-mode",
             value: "Map",
