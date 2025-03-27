@@ -17,10 +17,8 @@ use crate::components::common::BuildOptsSelector;
 
 #[component]
 pub fn Map(
-    ref_files: Signal<Vec<Vec<u8>>>,
-    query_files: Signal<Vec<Vec<u8>>>,
-    queries: Vec<crate::util::ContigData>,
-    refseqs: Vec<crate::util::ContigData>,
+    queries: Vec<(String, Vec<crate::util::ContigData>)>,
+    reference: (String, Vec<crate::util::ContigData>),
 ) -> Element {
 
     let mut res = use_signal(Vec::<(String, Vec<u8>)>::new);
@@ -32,6 +30,8 @@ pub fn Map(
     let kmer_size: Signal<u32> = use_signal(|| 31);
     let dedup_batches: Signal<bool> = use_signal(|| true);
     let prefix_precalc: Signal<u32> = use_signal(|| 8);
+
+    let mut res_error: Signal<String> = use_signal(String::new);
 
     rsx! {
         div { class: "row",
@@ -74,11 +74,15 @@ pub fn Map(
               div { class: "column",
                     button {
                         onclick: move |_event| {
-                            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                            if !reference.1.is_empty() && !queries.is_empty() {
+                                // Clear old results
+                                res.write().clear();
+                                *res_error.write() = String::new();
+
                                 let mut map_opts = kbo::MapOpts::default();
                                 map_opts.max_error_prob = *max_error_prob.read();
 
-                                query_files.read().iter().zip(queries.iter()).for_each(|(query_name, query_contig)| {
+                                queries.iter().for_each(|(query_file, query_contig)| {
                                     // Options for indexing reference
                                     let mut build_opts = kbo::BuildOpts::default();
                                     build_opts.build_select = true;
@@ -87,14 +91,19 @@ pub fn Map(
                                     build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
                                     let (sbwt, lcs) = crate::util::build_sbwt(
-                                        &[query_contig.seq.clone()],
+                                        &query_contig.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
                                         Some(build_opts),
                                     );
 
-                                    let my_res: Vec<u8> = refseqs.iter().flat_map(|ref_contig| {
+                                    let my_res: Vec<u8> = reference.1.iter().flat_map(|ref_contig| {
                                         kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
                                     }).collect();
-                                    res.write().push((query_name.iter().map(|x| *x as char).collect::<String>(), my_res));
+
+                                    if my_res.is_empty() && res.read().is_empty() {
+                                        *res_error.write() = "Nothing to report!".to_string();
+                                    } else {
+                                        res.write().push((">".to_string() + query_file, my_res));
+                                    }
                                 });
                             }
                         },
@@ -120,11 +129,15 @@ pub fn Map(
               // }
         }
         div { class: "row-results",
-              if res.read().len() > 0 {
+              if res.read().len() > 0 && res_error.read().is_empty() {
                   {
                       rsx! {
                           CopyableMapResult { data: res.read().to_vec() }
                       }
+                  }
+              } else if !res_error.read().is_empty() {
+                  div {
+                      { res_error.read().to_string() }
                   }
               }
         }

@@ -170,6 +170,8 @@ fn CopyableFindResultTable(
 
 fn format_find_result(
     result: &kbo::format::RLE,
+    query_file: String,
+    ref_file: String,
     query_contig: String,
     ref_contig: String,
     ref_bases: u64,
@@ -180,8 +182,8 @@ fn format_find_result(
     let identity = (result.matches as f64)/(aln_len as f64) * 100_f64;
 
     FindResult {
-        query_file: "query".to_string(),
-        ref_file: "ref".to_string(),
+        query_file,
+        ref_file,
         start: result.start as u64,
         end: result.end as u64,
         strand,
@@ -265,10 +267,8 @@ pub fn FindOptsSelector(
 
 #[component]
 pub fn Find(
-    ref_files: Signal<Vec<Vec<u8>>>,
-    query_files: Signal<Vec<Vec<u8>>>,
-    queries: Vec<crate::util::ContigData>,
-    refseqs: Vec<crate::util::ContigData>,
+    queries: Vec<(String, Vec<crate::util::ContigData>)>,
+    reference: (String, Vec<crate::util::ContigData>),
 ) -> Element {
 
     let mut res = use_signal(Vec::<FindResult>::new);
@@ -284,6 +284,8 @@ pub fn Find(
     let kmer_size: Signal<u32> = use_signal(|| 31);
     let dedup_batches: Signal<bool> = use_signal(|| true);
     let prefix_precalc: Signal<u32> = use_signal(|| 8);
+
+    let mut res_error: Signal<String> = use_signal(String::new);
 
     rsx! {
         div { class: "row",
@@ -323,7 +325,11 @@ pub fn Find(
               div { class: "column",
                     button {
                         onclick: move |_event| {
-                            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                            if !reference.1.is_empty() && !queries.is_empty() {
+                                // Clear old results
+                                res.write().clear();
+                                *res_error.write() = String::new();
+
                                 let mut find_opts = kbo::FindOpts::default();
                                 find_opts.max_error_prob = *max_error_prob.read();
                                 find_opts.max_gap_len = *max_gap_len.read() as usize;
@@ -337,16 +343,13 @@ pub fn Find(
                                 build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
                                 if !*detailed.read() {
-
-                                    // TODO Work around cloning reference contig data in Find
-
-                                    let bases: u64 = refseqs.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
+                                    let bases: u64 = reference.1.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
                                     indexes.push((crate::util::build_sbwt(
-                                        &[refseqs.iter().flat_map(|contig| contig.seq.clone()).collect()],
+                                        &[reference.1.iter().flat_map(|contig| contig.seq.clone()).collect()],
                                         Some(build_opts),
-                                    ), "ref_file".to_string(), bases));
+                                    ), reference.0.clone(), bases));
                                 } else {
-                                    refseqs.iter().for_each(|contig| {
+                                    reference.1.iter().for_each(|contig| {
                                         let bases: u64 = contig.seq.len() as u64;
                                         indexes.push((crate::util::build_sbwt(
                                             &[contig.seq.clone()],
@@ -355,22 +358,30 @@ pub fn Find(
                                     });
                                 }
 
-                                *res.write() = Vec::<FindResult>::new();
                                 indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
-                                    queries.iter().for_each(|contig| {
+                                    queries.iter().for_each(|(query_file, contigs)| {
                                         let mut run_lengths: Vec<FindResult> = Vec::new();
 
                                         // Get local alignments for forward strand
-                                        let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
-                                        run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '+')
-                                        }));
+                                        contigs.iter().for_each(|contig| {
+                                            let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
+                                            run_lengths.extend(run_lengths_fwd.iter().map(|x| {
+                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.to_string(), *ref_bases, '+')
+                                            }));
 
-                                        // Add local alignments for reverse complement
-                                        let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
-                                        run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                                            format_find_result(x, contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
-                                        }));
+                                            // Add local alignments for reverse complement
+                                            let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
+                                            run_lengths.extend(run_lengths_rev.iter().map(|x| {
+                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
+                                            }));
+
+                                            if run_lengths.is_empty() && res.read().is_empty() {
+                                                *res_error.write() = "No alignments detected.".to_string();
+                                            } else {
+                                                *res_error.write() = String::new();
+                                            }
+
+                                        });
 
                                         // Print results with query and ref name added
                                         res.write().extend(run_lengths);
@@ -398,7 +409,7 @@ pub fn Find(
         }
 
         div { class: "row-results",
-              if res.read().len() > 0 {
+              if res.read().len() > 0 && res_error.read().is_empty() {
                   {
                       let data = res.read()
                                     .to_vec()
@@ -418,6 +429,10 @@ pub fn Find(
                               CopyableFindResultTable { data }
                           }
                       }
+                  }
+              } else if !res_error.read().is_empty() {
+                  div {
+                      { res_error.read().to_string() }
                   }
               }
         }

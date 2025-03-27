@@ -33,17 +33,6 @@ fn RunModeSelector(
     kbo_mode: Signal<KboMode>,
 ) -> Element {
     rsx! {
-        // Run mode selector,
-        // for supported see KboMode
-        // // Mode `Call`
-        // input {
-        //     r#type: "button",
-        //     name: "kbo-mode",
-        //     value: "Call",
-        //     onclick: move |_| {
-        //         *kbo_mode.write() = KboMode::Call;
-        //     },
-        // }
 
       // Mode `Call`
         input {
@@ -79,13 +68,13 @@ fn RunModeSelector(
 
 #[component]
 pub fn Kbo() -> Element {
-    let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
-    let query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
+    let ref_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(|| { Vec::with_capacity(1) });
+    let query_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(Vec::new);
 
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
-    let mut queries: Vec<crate::util::ContigData> = Vec::new();
-    let mut refseqs: Vec<crate::util::ContigData> = Vec::new();
+    let mut queries: Vec<(String, Vec<crate::util::ContigData>)> = Vec::new();
+    let mut reference: (String, Vec<crate::util::ContigData>) = (String::new(), Vec::new());
 
     let version = env!("CARGO_PKG_VERSION").to_string();
     let footer_string = "kbo-gui v".to_string() + &version;
@@ -118,10 +107,10 @@ pub fn Kbo() -> Element {
                           FastaFileSelector { multiple: false, seq_data: ref_files }
                           {
                               if ref_files.read().len() > 0 {
-                                  ref_files.read().iter().for_each(|seq| {
-                                    let data = crate::util::read_seq_data(seq);
-                                    match data {
-                                        Ok(data) => { *ref_error.write() = String::new(); refseqs.extend(data) },
+                                  ref_files.read().iter().for_each(|(filename, contents)| {
+                                    let seq_data = crate::util::read_seq_data(contents);
+                                    match seq_data {
+                                        Ok(data) => { *ref_error.write() = String::new(); reference = (filename.clone(), data) },
                                         Err(e) => { *ref_error.write() = e.msg; },
                                     }
                                   });
@@ -135,17 +124,19 @@ pub fn Kbo() -> Element {
                           FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
                           {
                               if query_files.read().len() > 0 {
-                                  query_files.read().iter().for_each(|query| {
-                                    let data = crate::util::read_seq_data(query);
+                                  queries = query_files.read().iter().filter_map(|(filename, contents)| {
+                                    let data = crate::util::read_seq_data(contents);
                                     match data {
-                                        Ok(data) => { *query_error.write() = String::new(); queries.extend(data)},
-                                        Err(e) => { *query_error.write() = e.msg; },
+                                        Ok(data) => { *query_error.write() = String::new(); Some((filename.clone(), data)) },
+                                        Err(e) => { *query_error.write() = e.msg; None },
                                     }
-                                  })
+                                  }).collect::<Vec<(String, Vec<crate::util::ContigData>)>>();
                               }
                           }
                     }
               }
+
+              // fastX parser errors
               div { class: "row",
                     div { class: "column-left",
                           if ref_error.read().len() > 0 {
@@ -168,10 +159,8 @@ pub fn Kbo() -> Element {
                           // Mode `Find`
                           rsx! {
                               Call {
-                                  ref_files,
-                                  query_files,
                                   queries,
-                                  refseqs,
+                                  reference,
                               }
                           }
                       },
@@ -180,10 +169,8 @@ pub fn Kbo() -> Element {
                           // Mode `Find`
                           rsx! {
                               Find {
-                                  ref_files,
-                                  query_files,
                                   queries,
-                                  refseqs,
+                                  reference,
                               }
                           }
                       },
@@ -191,10 +178,8 @@ pub fn Kbo() -> Element {
                       KboMode::Map => {
                           rsx! {
                               Map {
-                                  ref_files,
-                                  query_files,
                                   queries,
-                                  refseqs,
+                                  reference,
                               }
                           }
                       },

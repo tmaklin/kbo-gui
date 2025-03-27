@@ -16,7 +16,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn FastaFileSelector(
     multiple: bool,
-    seq_data: Signal<Vec<Vec<u8>>>) -> Element {
+    seq_data: Signal<Vec<(String, Vec<u8>)>>) -> Element {
     rsx! {
         input {
             // tell the input to pick a file
@@ -29,12 +29,14 @@ pub fn FastaFileSelector(
                 async move {
                     if let Some(file_engine) = &evt.files() {
                         let files = file_engine.files();
+                        let mut data: Vec<(String, Vec<u8>)> = Vec::new();
                         for file_name in &files {
                             if let Some(file) = file_engine.read_file(file_name).await
                             {
-                                seq_data.write().push(file.to_vec());
+                                data.push((file_name.clone(), file));
                             }
                         }
+                        *seq_data.write() = data;
                     }
                 }
             },

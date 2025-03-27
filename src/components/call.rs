@@ -125,9 +125,11 @@ fn SortableCallResultTable(
 #[component]
 fn CopyableCallResultTable(
     data: Vec::<CallResult>,
+    ref_path: String,
+    contig_info: Vec<(String, usize)>,
 ) -> Element {
 
-    let display = format_call_header() +
+    let display = format_call_header(&ref_path, &contig_info) +
         &data.iter().map(|x| {
         x.chromosome.clone() + "\t" +
             &x.position.to_string() + "\t" +
@@ -225,15 +227,20 @@ fn format_call_result(
 }
 
 fn format_call_header(
-
+    ref_file: &str,
+    contig_info: &[(String, usize)],
 ) -> String {
     let current_date = Local::now().format("%Y%m%d").to_string();
     "##fileformat=VCFv4.4\n".to_string() +
-        "##contig=<ID=PLACEHOLDER,length=99999>\n" +
+        &contig_info.iter().map(|(name, length)| {
+            let mut header_contents = name.split_whitespace();
+            let contig_name = header_contents.next().expect("Contig name");
+            "##contig=<ID=".to_owned() + contig_name + ",length=" + &length.to_string() + ">\n"
+        }).collect::<String>() +
         "##contig=<ID=PLACEHOLDER,length=99999>\n" +
         "##fileDate=" + &current_date.to_string() + "\n" +
         "##source=kbo-gui v" + env!("CARGO_PKG_VERSION") + "\n" +
-        "##reference=PLACEHOLDER\n" +
+        "##reference=" + ref_file + "\n" +
         "##phasing=none\n"
 }
 
@@ -266,10 +273,8 @@ pub fn CallOptsSelector(
 
 #[component]
 pub fn Call(
-    ref_files: Signal<Vec<Vec<u8>>>,
-    query_files: Signal<Vec<Vec<u8>>>,
-    queries: Vec<crate::util::ContigData>,
-    refseqs: Vec<crate::util::ContigData>,
+    queries: Vec<(String, Vec<crate::util::ContigData>)>,
+    reference: (String, Vec<crate::util::ContigData>),
 ) -> Element {
 
     let mut res = use_signal(Vec::<CallResult>::new);
@@ -284,12 +289,9 @@ pub fn Call(
     let dedup_batches: Signal<bool> = use_signal(|| true);
     let prefix_precalc: Signal<u32> = use_signal(|| 8);
 
-    let ref_file = if ref_files.read().len() > 0 {
-         // This function should only receive 1 reference file
-        "chromosome".to_string()
-    } else {
-        "".to_string()
-    };
+    let mut contig_info: Signal<Vec<(String, usize)>> = use_signal(|| Vec::with_capacity(reference.1.len()));
+
+    let mut res_error: Signal<String> = use_signal(String::new);
 
     rsx! {
         div { class: "row",
@@ -329,7 +331,11 @@ pub fn Call(
               div { class: "column",
                     button {
                         onclick: move |_event| {
-                            if ref_files.read().len() > 0 && query_files.read().len() > 0 {
+                            if !reference.1.is_empty() && !queries.is_empty() {
+                                // Clear old results
+                                res.write().clear();
+                                contig_info.write().clear();
+
                                 // Options for indexing
                                 let mut call_opts = kbo::CallOpts::default();
                                 call_opts.max_error_prob = *max_error_prob.read();
@@ -339,21 +345,35 @@ pub fn Call(
 
                                 let build_opts = call_opts.sbwt_build_opts.clone();
 
-                                let (sbwt_query, lcs_query) = crate::util::build_sbwt(&queries.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(), Some(build_opts));
+                                let query_data = queries[0].1.iter().map(|contents| {
+                                    contents.seq.clone()
+                                }).collect::<Vec<Vec<u8>>>();
+
+                                let (sbwt_query, lcs_query) = crate::util::build_sbwt(&query_data, Some(build_opts));
 
                                 *res.write() = Vec::<CallResult>::new();
-                                refseqs.iter().for_each(|contig| {
+                                reference.1.iter().for_each(|contig| {
+                                    let mut header_contents = contig.name.split_whitespace();
+                                    let contig_name = header_contents.next().expect("Contig name");
+                                    contig_info.write().push((contig.name.clone(), contig.seq.len()));
                                     let variants = kbo::call(&sbwt_query, &lcs_query, &contig.seq, call_opts.clone());
+
+                                    if variants.is_empty() && res.read().is_empty() {
+                                        *res_error.write() = "No variants detected, try increasing k-mer size.".to_string();
+                                    } else {
+                                        *res_error.write() = String::new();
+                                    }
+
                                     res.write().extend(variants.iter().flat_map(|variant| {
 
                                         let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
                                         if flanking.is_some() {
                                             let (var1, var2) = flanking.unwrap();
-                                            let record1 = format_call_result(&var1, &contig.seq, &ref_file);
-                                            let record2 = format_call_result(&var2, &contig.seq, &ref_file);
+                                            let record1 = format_call_result(&var1, &contig.seq, contig_name);
+                                            let record2 = format_call_result(&var2, &contig.seq, contig_name);
                                             vec![record1, record2]
                                         } else {
-                                            vec![format_call_result(variant, &contig.seq, &ref_file)]
+                                            vec![format_call_result(variant, &contig.seq, contig_name)]
                                         }
                                     }));
                                 });
@@ -378,16 +398,20 @@ pub fn Call(
         }
 
         div { class: "row-results",
-              if res.read().len() > 0 {
+              if res.read().len() > 0 && res_error.read().is_empty() {
                   {
                       let data = res.read().to_vec();
                       rsx! {
                           if *interactive.read() {
                               SortableCallResultTable { data }
                           } else {
-                              CopyableCallResultTable { data }
+                              CopyableCallResultTable { data, ref_path: reference.0, contig_info: contig_info.read().to_vec() }
                           }
                       }
+                  }
+              } else if !res_error.read().is_empty() {
+                  div {
+                      { res_error.read().to_string() }
                   }
               }
         }
