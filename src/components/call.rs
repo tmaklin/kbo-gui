@@ -275,18 +275,13 @@ pub fn CallOptsSelector(
 pub fn Call(
     queries: Vec<(String, Vec<crate::util::ContigData>)>,
     reference: (String, Vec<crate::util::ContigData>),
+    call_opts: kbo::CallOpts,
 ) -> Element {
 
     let mut res = use_signal(Vec::<CallResult>::new);
 
     // Options for running queries
     let mut interactive: Signal<bool> = use_signal(|| true);
-    let max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
-
-    // Options for indexing reference
-    let kmer_size: Signal<u32> = use_signal(|| 51);
-    let dedup_batches: Signal<bool> = use_signal(|| true);
-    let prefix_precalc: Signal<u32> = use_signal(|| 8);
 
     let mut contig_info: Signal<Vec<(String, usize)>> = use_signal(|| Vec::with_capacity(reference.1.len()));
 
@@ -294,26 +289,6 @@ pub fn Call(
     let mut show_spinner: Signal<bool> = use_signal(|| false);
 
     rsx! {
-        div { class: "row",
-              div { class: "column-left", br {} },
-              div { class: "column-right" },
-        }
-
-        div { class: "row",
-              div { class: "column-left",
-                    details {
-                        summary { "Indexing options" }
-                        BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
-                    }
-              }
-              div { class: "column-right",
-                    details {
-                        summary { "Alignment options" }
-                        CallOptsSelector { max_error_prob }
-                    }
-              }
-        }
-
         div { class: "row-run",
               div { class: "column",
                     button {
@@ -326,12 +301,6 @@ pub fn Call(
                                 contig_info.write().clear();
 
                                 // Options for indexing
-                                let mut call_opts = kbo::CallOpts::default();
-                                call_opts.max_error_prob = *max_error_prob.read();
-                                call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
-                                call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
-                                call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
                                 let build_opts = call_opts.sbwt_build_opts.clone();
 
                                 let query_data = queries[0].1.iter().map(|contents| {

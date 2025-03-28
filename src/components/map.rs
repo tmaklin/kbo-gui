@@ -13,25 +13,78 @@
 //
 use dioxus::prelude::*;
 
-use crate::components::common::BuildOptsSelector;
+#[component]
+pub fn MapOptsSelector(
+    max_error_prob: Signal<f64>,
+    do_vc: Signal<bool>,
+    do_gapfill: Signal<bool>,
+) -> Element {
+    rsx! {
+        div { class: "row-contents",
+              div { class: "column",
+                    "Error tolerance"
+              },
+              div { class: "column",
+                    input {
+                        r#type: "number",
+                        id: "min_len",
+                        name: "min_len",
+                        min: "0",
+                        max: "1.00",
+                        value: "0.0000001",
+                        onchange: move |event| {
+                            let new = event.value().parse::<f64>();
+                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                        }
+                    },
+              }
+        }
+        div { class: "row-contents",
+              div { class: "column",
+                    "Variant calling"
+              },
+              div { class: "column",
+                    input {
+                        r#type: "checkbox",
+                        id: "do_vc",
+                        name: "do_vc",
+                        checked: *do_vc.read(),
+                        onchange: move |_| {
+                            let old: bool = *do_vc.read();
+                            *do_vc.write() = !old;
+                        }
+                    },
+              }
+        }
+        div { class: "row-contents",
+              div { class: "column",
+                    "Gap filling"
+              },
+              div { class: "column",
+                    input {
+                        r#type: "checkbox",
+                        id: "do_gapfill",
+                        name: "do_gapfill",
+                        checked: *do_gapfill.read(),
+                        onchange: move |_| {
+                            let old: bool = *do_gapfill.read();
+                            *do_gapfill.write() = !old;
+                        }
+                    },
+              }
+        }
+    }
+}
 
 #[component]
 pub fn Map(
     queries: Vec<(String, Vec<crate::util::ContigData>)>,
     reference: (String, Vec<crate::util::ContigData>),
+    map_opts: kbo::MapOpts,
+    build_opts: kbo::BuildOpts,
 ) -> Element {
 
     let mut res = use_signal(Vec::<(String, Vec<u8>)>::new);
-
-    // Options for running queries
-    let mut max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
-    let mut do_vc: Signal<bool> = use_signal(|| true);
-    let mut do_gapfill: Signal<bool> = use_signal(|| true);
-
-    // Options for indexing reference
-    let kmer_size: Signal<u32> = use_signal(|| 31);
-    let dedup_batches: Signal<bool> = use_signal(|| true);
-    let prefix_precalc: Signal<u32> = use_signal(|| 8);
 
     let mut res_error: Signal<String> = use_signal(String::new);
 
@@ -39,73 +92,6 @@ pub fn Map(
         div { class: "row",
               div { class: "column-left", br {} },
               div { class: "column-right" },
-        }
-
-        div { class: "row",
-              div { class: "column-left",
-                    details {
-                        summary { "Indexing options" }
-                        BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
-                    }
-              }
-              div { class: "column-right",
-                    details {
-                        summary { "Alignment options" }
-                        div { class: "row-contents",
-                        div { class: "column",
-                              "Error tolerance"
-                        },
-                        div { class: "column",
-                              input {
-                                  r#type: "number",
-                                  id: "min_len",
-                                  name: "min_len",
-                                  min: "0",
-                                  max: "1.00",
-                                  value: "0.0000001",
-                                  onchange: move |event| {
-                                      let new = event.value().parse::<f64>();
-                                      if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
-                                  }
-                              },
-                        }
-                        }
-                        div { class: "row-contents",
-                        div { class: "column",
-                              "Variant calling"
-                        },
-                        div { class: "column",
-                              input {
-                                  r#type: "checkbox",
-                                  id: "do_vc",
-                                  name: "do_vc",
-                                  checked: *do_vc.read(),
-                                  onchange: move |_| {
-                                      let old: bool = *do_vc.read();
-                                      *do_vc.write() = !old;
-                                  }
-                              },
-                        }
-                        }
-                        div { class: "row-contents",
-                        div { class: "column",
-                              "Gap filling"
-                        },
-                        div { class: "column",
-                              input {
-                                  r#type: "checkbox",
-                                  id: "do_gapfill",
-                                  name: "do_gapfill",
-                                  checked: *do_gapfill.read(),
-                                  onchange: move |_| {
-                                      let old: bool = *do_gapfill.read();
-                                      *do_gapfill.write() = !old;
-                                  }
-                              },
-                        }
-                        }
-                    }
-              }
         }
 
         div { class: "row-run",
@@ -117,22 +103,11 @@ pub fn Map(
                                 res.write().clear();
                                 *res_error.write() = String::new();
 
-                                let mut map_opts = kbo::MapOpts::default();
-                                map_opts.max_error_prob = *max_error_prob.read();
-                                map_opts.call_variants = *do_vc.read();
-                                map_opts.fill_gaps = *do_vc.read();
-
                                 queries.iter().for_each(|(query_file, query_contig)| {
-                                    // Options for indexing reference
-                                    let mut build_opts = kbo::BuildOpts::default();
-                                    build_opts.build_select = true;
-                                    build_opts.k = *kmer_size.read() as usize;
-                                    build_opts.dedup_batches = *dedup_batches.read();
-                                    build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
                                     let (sbwt, lcs) = crate::util::build_sbwt(
                                         &query_contig.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
-                                        Some(build_opts),
+                                        Some(build_opts.clone()),
                                     );
 
                                     let my_res: Vec<u8> = reference.1.iter().flat_map(|ref_contig| {
