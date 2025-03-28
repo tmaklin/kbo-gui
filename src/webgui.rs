@@ -76,9 +76,6 @@ pub fn Kbo() -> Element {
 
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
-    let mut queries: Vec<(String, Vec<crate::util::ContigData>)> = Vec::new();
-    let mut reference: (String, Vec<crate::util::ContigData>) = (String::new(), Vec::new());
-
     let version = env!("CARGO_PKG_VERSION").to_string();
     let footer_string = "kbo-gui v".to_string() + &version;
     let repository = env!("CARGO_PKG_REPOSITORY").to_string();
@@ -108,34 +105,12 @@ pub fn Kbo() -> Element {
                               "Reference file"
                           }
                           FastaFileSelector { multiple: false, seq_data: ref_files }
-                          {
-                              if ref_files.read().len() > 0 {
-                                  ref_files.read().iter().for_each(|(filename, contents)| {
-                                    let seq_data = crate::util::read_seq_data(contents);
-                                    match seq_data {
-                                        Ok(data) => { *ref_error.write() = String::new(); reference = (filename.clone(), data) },
-                                        Err(e) => { *ref_error.write() = e.msg; },
-                                    }
-                                  });
-                              }
-                          }
                     }
 
                     // Query file(s)
                     div { class: "column-right",
                           h3 { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
                           FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
-                          {
-                              if query_files.read().len() > 0 {
-                                  queries = query_files.read().iter().filter_map(|(filename, contents)| {
-                                    let data = crate::util::read_seq_data(contents);
-                                    match data {
-                                        Ok(data) => { *query_error.write() = String::new(); Some((filename.clone(), data)) },
-                                        Err(e) => { *query_error.write() = e.msg; None },
-                                    }
-                                  }).collect::<Vec<(String, Vec<crate::util::ContigData>)>>();
-                              }
-                          }
                     }
               }
 
@@ -156,37 +131,58 @@ pub fn Kbo() -> Element {
               // Dynamically rendered components,
               // based on which KboMode is selected.
               {
-                  match *kbo_mode.read() {
 
-                    KboMode::Call => {
-                          // Mode `Find`
-                          rsx! {
-                              Call {
-                                  queries,
-                                  reference,
-                              }
+                let query_contigs = use_resource(move || async move {
+                  crate::util::read_fasta_files(&query_files.read()).await
+                });
+
+                let ref_contigs = use_resource(move || async move {
+                  crate::util::read_fasta_files(&ref_files.read()).await
+                });
+
+                if ref_files.read().len() > 0 {
+               if let Some(queries) = &*query_contigs.read_unchecked() {
+                  if let Some(reference) = &*ref_contigs.read_unchecked() {
+                    match *kbo_mode.read() {
+
+                      KboMode::Call => {
+                        // Mode `Find`
+                        rsx! {
+                          Call {
+                            queries: queries.as_ref().unwrap().clone(),
+                            reference: reference.as_ref().unwrap()[0].clone(),
                           }
+                        }
                       },
 
                       KboMode::Find => {
-                          // Mode `Find`
-                          rsx! {
-                              Find {
-                                  queries,
-                                  reference,
-                              }
+                        // Mode `Find`
+                        rsx! {
+                          Find {
+                            queries: queries.as_ref().unwrap().clone(),
+                            reference: reference.as_ref().unwrap()[0].clone(),
                           }
+                        }
                       },
 
                       KboMode::Map => {
-                          rsx! {
-                              Map {
-                                  queries,
-                                  reference,
-                              }
+                        rsx! {
+                          Map {
+                            queries: queries.as_ref().unwrap().clone(),
+                            reference: reference.as_ref().unwrap()[0].clone(),
                           }
+                        }
                       },
+                    }
+                  } else {
+                    rsx! { { "loading" } }
                   }
+                } else {
+                  rsx! { { "loading" } }
+                }
+              } else {
+                  rsx! { { "nothing" } }
+                }
               }
         }
         footer { class: "footer",
