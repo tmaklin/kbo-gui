@@ -28,6 +28,7 @@ enum FindResultField {
     Strand,
     Length,
     Mismatches,
+    GapBases,
     GapOpens,
     Identity,
     Coverage,
@@ -45,6 +46,7 @@ impl PartialOrdBy<FindResult> for FindResultField {
             FindResultField::Strand => a.strand.partial_cmp(&b.strand),
             FindResultField::Length => a.length.partial_cmp(&b.length),
             FindResultField::Mismatches => a.mismatches.partial_cmp(&b.mismatches),
+            FindResultField::GapBases => a.gap_bases.partial_cmp(&b.gap_bases),
             FindResultField::GapOpens => a.gap_opens.partial_cmp(&b.gap_opens),
             FindResultField::Identity => a.identity.partial_cmp(&b.identity),
             FindResultField::Coverage => a.coverage.partial_cmp(&b.coverage),
@@ -74,6 +76,7 @@ struct FindResult {
     strand: char,
     length: u64,
     mismatches: u64,
+    gap_bases: u64,
     gap_opens: u64,
     identity: f64,
     coverage: f64,
@@ -99,6 +102,7 @@ fn SortableFindResultTable(
                     Th { sorter: sorter, field: FindResultField::Strand, "strand" }
                     Th { sorter: sorter, field: FindResultField::Length, "length" }
                     Th { sorter: sorter, field: FindResultField::Mismatches, "mismatches" }
+                    Th { sorter: sorter, field: FindResultField::GapBases, "gap_bases" }
                     Th { sorter: sorter, field: FindResultField::GapOpens, "gap_opens" }
                     Th { sorter: sorter, field: FindResultField::Identity, "identity" }
                     Th { sorter: sorter, field: FindResultField::Coverage, "coverage" }
@@ -120,6 +124,7 @@ fn SortableFindResultTable(
                                 td { "{row.strand}" }
                                 td { "{row.length}" }
                                 td { "{row.mismatches}" }
+                                td { "{row.gap_bases}" }
                                 td { "{row.gap_opens}" }
                                 td { "{identity_rounded}" }
                                 td { "{coverage_rounded}" }
@@ -150,6 +155,7 @@ fn CopyableFindResultTable(
             &x.strand.to_string() + "," +
             &x.length.to_string() + "," +
             &x.mismatches.to_string() + "," +
+            &x.gap_bases.to_string() + "," +
             &x.gap_opens.to_string() + "," +
             &identity_rounded.to_string() + "," +
             &coverage_rounded.to_string() + "," +
@@ -174,21 +180,25 @@ fn format_find_result(
     ref_file: String,
     query_contig: String,
     ref_contig: String,
-    ref_bases: u64,
+    query_bases: usize,
+    ref_bases: usize,
     strand: char,
 ) -> FindResult {
-    let aln_len = result.end - result.start + 1;
-    let coverage = (aln_len as f64)/(ref_bases as f64) * 100_f64;
+    let aln_len = result.end - result.start;
+    let aln_start = if strand == '+' { result.start } else { query_bases - result.end } + 1;
+    let aln_end = if strand == '+' { result.end } else { query_bases - result.start };
+    let coverage = (result.matches as f64 + result.mismatches as f64)/(ref_bases as f64) * 100_f64;
     let identity = (result.matches as f64)/(aln_len as f64) * 100_f64;
 
     FindResult {
         query_file,
         ref_file,
-        start: result.start as u64,
-        end: result.end as u64,
+        start: aln_start as u64,
+        end: aln_end as u64,
         strand,
-        length: (result.end - result.start + 1) as u64,
+        length: aln_len as u64,
         mismatches: result.mismatches as u64,
+        gap_bases: result.gap_bases as u64,
         gap_opens: result.gap_opens as u64,
         identity,
         coverage,
@@ -364,15 +374,16 @@ pub fn Find(
 
                                         // Get local alignments for forward strand
                                         contigs.iter().for_each(|contig| {
+                                            let query_bases = contig.seq.len();
                                             let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
                                             run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.to_string(), *ref_bases, '+')
+                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.to_string(), query_bases, *ref_bases as usize, '+')
                                             }));
 
                                             // Add local alignments for reverse complement
                                             let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
                                             run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.clone(), *ref_bases, '-')
+                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.clone(), query_bases, *ref_bases as usize, '-')
                                             }));
 
                                             if run_lengths.is_empty() && res.read().is_empty() {
