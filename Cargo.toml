@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Tommi Mäklin <tommi@maklin.fi>"]
 edition = "2021"
 rust-version = "1.80.0"
+homepage = "https://docs.rs/kbo"
+repository = "https://github.com/tmaklin/kbo-gui"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
@@ -11,6 +13,9 @@ license = "MIT OR Apache-2.0"
 kbo = "0.5.0"
 sbwt = "0.3.7"
 tokio = { version = "1.40.0", features = ["rt"] }
+
+## .vcf writing
+chrono = "0.4.40"
 
 # Debug
 dioxus-logger = "0.6.2"

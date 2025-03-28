@@ -13,99 +13,194 @@
 //
 use dioxus::prelude::*;
 
+use crate::components::common::FastaFileSelector;
+use crate::components::call::Call;
+use crate::components::find::Find;
+use crate::components::map::Map;
+
+static CSS: Asset = asset!("/assets/main.css");
+
 #[derive(Default, PartialEq)]
 enum KboMode {
     #[default]
+    Call,
     Find,
     Map,
 }
 
 #[component]
+fn RunModeSelector(
+    kbo_mode: Signal<KboMode>,
+) -> Element {
+    rsx! {
+
+      // Mode `Call`
+        input {
+            class: if *kbo_mode.read() == KboMode::Call { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Call",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Call;
+            },
+        }
+        " "
+        // Mode `Find`
+        input {
+            class: if *kbo_mode.read() == KboMode::Find { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Find",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Find;
+            },
+        }
+        " "
+        // Mode `Map`
+        input {
+            class: if *kbo_mode.read() == KboMode::Map { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Map",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Map;
+            },
+        }
+    }
+}
+
+#[component]
 pub fn Kbo() -> Element {
-    let ref_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
-    let query_files: Signal<Vec<Vec<u8>>> = use_signal(Vec::new);
+    let ref_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(|| { Vec::with_capacity(1) });
+    let query_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(Vec::new);
 
-    let mut kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
+    let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
-    let mut queries: Vec<crate::util::ContigData> = Vec::new();
-    let mut refseqs: Vec<crate::util::ContigData> = Vec::new();
+    let mut queries: Vec<(String, Vec<crate::util::ContigData>)> = Vec::new();
+    let mut reference: (String, Vec<crate::util::ContigData>) = (String::new(), Vec::new());
+
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    let footer_string = "kbo-gui v".to_string() + &version;
+    let repository = env!("CARGO_PKG_REPOSITORY").to_string();
+    let homepage = env!("CARGO_PKG_HOMEPAGE").to_string();
+
+    let mut ref_error: Signal<String> = use_signal(String::new);
+    let mut query_error: Signal<String> = use_signal(String::new);
 
     rsx! {
-        // Run mode selector
-        // supported: see KboMode
-        div {
-            h2 { "Mode" }
-            input {
-                r#type: "radio",
-                name: "kbo-mode",
-                value: "find",
-                checked: true,
-                onchange: move |_| {
-                    *kbo_mode.write() = KboMode::Find;
-                },
-            }
-            "Find"
-            input {
-                r#type: "radio",
-                name: "kbo-mode",
-                value: "map",
-                onchange: move |_| {
-                    *kbo_mode.write() = KboMode::Map;
-                },
-            }
-            "Map"
-        }
+        document::Stylesheet { href: CSS }
 
-        div {
-            h2 { "Reference file" }
-            crate::components::FastaFileSelector { multiple: false, seq_data: ref_files }
-            {
-                if ref_files.read().len() > 0 {
-                    ref_files.read().iter().for_each(|seq| {
-                        refseqs.extend(crate::util::read_seq_data(seq));
-                    });
-                }
-            }
-        }
+        div { class: "div-box",
+              // kbo title + space for logo
+              div { class: "row-logo",
+                    h1 { "kbo"}
+              }
 
-        div {
-            h2 { "Query file(s)" }
-            crate::components::FastaFileSelector { multiple: true, seq_data: query_files }
-            {
-                if query_files.read().len() > 0 {
-                    query_files.read().iter().for_each(|query| {
-                        queries.extend(crate::util::read_seq_data(query));
-                    })
-                }
-            }
-        }
+              div { class: "row-header",
+                    RunModeSelector { kbo_mode }
+              }
 
-        {
-            if *kbo_mode.read() == KboMode::Map {
-                rsx! {
-                    crate::components::Map {
-                        ref_files,
-                        query_files,
-                        queries,
-                        refseqs,
+              // Input selectors
+              div { class: "row",
+                    // Reference file
+                    div { class: "column-left",
+                          h3 {
+                              "Reference file"
+                          }
+                          FastaFileSelector { multiple: false, seq_data: ref_files }
+                          {
+                              if ref_files.read().len() > 0 {
+                                  ref_files.read().iter().for_each(|(filename, contents)| {
+                                    let seq_data = crate::util::read_seq_data(contents);
+                                    match seq_data {
+                                        Ok(data) => { *ref_error.write() = String::new(); reference = (filename.clone(), data) },
+                                        Err(e) => { *ref_error.write() = e.msg; },
+                                    }
+                                  });
+                              }
+                          }
                     }
-                }
-            } else if *kbo_mode.read() == KboMode::Find {
-                rsx! {
-                    crate::components::Find {
-                        ref_files,
-                        query_files,
-                        queries,
-                        refseqs,
+
+                    // Query file(s)
+                    div { class: "column-right",
+                          h3 { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
+                          FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
+                          {
+                              if query_files.read().len() > 0 {
+                                  queries = query_files.read().iter().filter_map(|(filename, contents)| {
+                                    let data = crate::util::read_seq_data(contents);
+                                    match data {
+                                        Ok(data) => { *query_error.write() = String::new(); Some((filename.clone(), data)) },
+                                        Err(e) => { *query_error.write() = e.msg; None },
+                                    }
+                                  }).collect::<Vec<(String, Vec<crate::util::ContigData>)>>();
+                              }
+                          }
                     }
-                }
-            } else {
-                rsx! {
-                    div {
-                        { "Unknown mode; check your selection." }
+              }
+
+              // fastX parser errors
+              div { class: "row",
+                    div { class: "column-left",
+                          if ref_error.read().len() > 0 {
+                            { ref_error.read().to_string() }
+                          }
                     }
-                }
-            }
+                    div { class: "column-right",
+                          if query_error.read().len() > 0 {
+                            { query_error.read().to_string() }
+                          }
+                    }
+              }
+
+              // Dynamically rendered components,
+              // based on which KboMode is selected.
+              {
+                  match *kbo_mode.read() {
+
+                    KboMode::Call => {
+                          // Mode `Find`
+                          rsx! {
+                              Call {
+                                  queries,
+                                  reference,
+                              }
+                          }
+                      },
+
+                      KboMode::Find => {
+                          // Mode `Find`
+                          rsx! {
+                              Find {
+                                  queries,
+                                  reference,
+                              }
+                          }
+                      },
+
+                      KboMode::Map => {
+                          rsx! {
+                              Map {
+                                  queries,
+                                  reference,
+                              }
+                          }
+                      },
+                  }
+              }
+        }
+        footer { class: "footer",
+                 div { class: "row-footer",
+                       div { class: "column-footer",
+                             { footer_string },
+                       }
+                       div { class: "column-footer",
+                             a { href: homepage, "About" },
+                       }
+                       div { class: "column-footer",
+                             a { href: repository, "Report issues" },
+                       }
+                 }
         }
     }
 }

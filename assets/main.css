@@ -1,5 +1,52 @@
+:root {
+  color-scheme: light dark;
+}
 body {
-    background-color: #111216;
+  color: light-dark(#333b3c, #efefec);
+  background-color: light-dark(#efedea, #101828);
+}
+
+.test {
+  position: relative;
+  padding: 0.5em 1em;
+  border: 0;
+  border-radius: 0.5em;
+  background-color: pink;
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  color: #101828;
+}
+
+.test-active {
+  position: relative;
+  padding: 0.5em 1em;
+  border: 0;
+  border-radius: 0.5em;
+  background-color: lightblue;
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  font-weight: bold;
+  color: black;
+}
+
+.loader {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #cccccc;
+    border-bottom-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 #main {
@@ -37,4 +84,100 @@ body {
 
 #header {
     max-width: 1200px;
+}
+
+.row-contents {
+  display: flex;
+  align-content: flex-start;
+  text-align: left;
+  width: 100%;
+  max-width: 800px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.row {
+  display: flex;
+  align-content: flex-start;
+  text-align: left;
+  width: 100%;
+  min-width: 800px;
+  max-width: 800px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.row-header {
+  text-align: center;
+}
+
+.row-logo {
+  text-align: center;
+}
+
+.row-run {
+  text-align: center;
+  margin-top: 2em;
+  display: flex;
+  min-width: 350px;
+  max-width: 800px;
+}
+
+.row-results {
+  text-align: center;
+    width: 100%;
+    max-width: 750px;
+    max-height: 400px;
+    overflow-x: auto;
+    overflow-y: auto;
+    margin-top: 1em;
+    margin-left: 1.5em;
+    margin-right: 0em;
+}
+
+.row-footer {
+  text-align: center;
+  display: flex;
+  width: 100%;
+  min-width: 400px;
+}
+
+.column {
+  flex: 50%;
+  width: 50%;
+}
+
+.column-left {
+  flex: 50%;
+  width: 50%;
+  margin-right: 0.5em;
+  margin-left: 6.5em;
+  overflow-x: auto;
+}
+
+.column-right {
+  flex: 50%;
+  width: 50%;
+  margin-right: 0.5em;
+  margin-left: 5em;
+  overflow-x: auto;
+}
+
+.column-footer {
+  flex: 33%;
+  width: 33%;
+}
+
+.footer {
+  margin-top: 2em;
+  padding-bottom: 3em;
+  text-align: center;
+}
+
+.div-box {
+  min-width: 800px;
+  border: 2px solid #cccccc;
+  border-radius: 5px;
+  padding-bottom: 2em;
+  background-color: light-dark(#efefec, #1e2939)
 }
