@@ -130,8 +130,8 @@ body {
     width: 100%;
     max-width: 750px;
     max-height: 400px;
-    overflow-x: scroll;
-    overflow-y: scroll;
+    overflow-x: auto;
+    overflow-y: auto;
     margin-top: 1em;
     margin-left: 1.5em;
     margin-right: 0em;
@@ -154,7 +154,7 @@ body {
   width: 50%;
   margin-right: 0.5em;
   margin-left: 6.5em;
-  overflow-x: scroll;
+  overflow-x: auto;
 }
 
 .column-right {
@@ -162,7 +162,7 @@ body {
   width: 50%;
   margin-right: 0.5em;
   margin-left: 5em;
-  overflow-x: scroll;
+  overflow-x: auto;
 }
 
 .column-footer {
