@@ -326,29 +326,38 @@ pub fn Call(
     ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
     query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
     interactive: ReadOnlySignal<bool>,
+    cached_res: Signal<(Vec::<CallResult>, String, Vec<(String, usize)>)>,
     call_opts: kbo::CallOpts,
 ) -> Element {
 
-    let variants = use_resource(move || {
-        let opts = call_opts.clone();
-        async move {
-            // Delay start to render a loading spinner
-            gloo_timers::future::TimeoutFuture::new(100).await;
-            call_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
-        }
-    }).suspend()?;
-
-    let ref_path = ref_contigs.read()[0].0.clone();
-    match &*variants.read_unchecked() {
-        Ok(data) => {
-            rsx! {
-                if *interactive.read() {
-                    SortableCallResultTable { data: data.1.to_vec() }
-                } else {
-                    CopyableCallResultTable { data: data.1.to_vec(), ref_path, contig_info: data.0.to_vec() }
-                }
+    if cached_res.read().0.is_empty() {
+        let variants = use_resource(move || {
+            let opts = call_opts.clone();
+            async move {
+                // Delay start to render a loading spinner
+                gloo_timers::future::TimeoutFuture::new(100).await;
+                call_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
             }
-        },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } }
+        }).suspend()?;
+
+        let ref_path = ref_contigs.read()[0].0.clone();
+        match &*variants.read_unchecked() {
+            Ok(data) => {
+                cached_res.set((
+                    data.1.to_vec(),
+                    ref_path,
+                    data.0.to_vec(),
+                ));
+            }
+            Err(e) => return rsx! { { "Error: ".to_string() + &e.message } }
+        }
+    }
+
+    rsx! {
+        if *interactive.read() {
+            SortableCallResultTable { data: cached_res.read().0.clone() }
+        } else {
+            CopyableCallResultTable { data: cached_res.read().0.clone(), ref_path: cached_res.read().1.clone(), contig_info: cached_res.read().2.clone() }
+        }
     }
 }

@@ -114,25 +114,27 @@ async fn map_runner(
 pub fn Map(
     ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
     query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    cached_res: Signal<Vec<(String, Vec<u8>)>>,
     map_opts: kbo::MapOpts,
 ) -> Element {
 
-    let aln = use_resource(move || {
-        let opts = map_opts.clone();
-        async move {
-            // Delay start to render a loading spinner
-            gloo_timers::future::TimeoutFuture::new(100).await;
-            map_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
-        }
-    }).suspend()?;
-
-    match &*aln.read_unchecked() {
-        Ok(data) => {
-            rsx! {
-                CopyableMapResult { data: data.to_vec() }
+    if cached_res.read().is_empty() {
+        let aln = use_resource(move || {
+            let opts = map_opts.clone();
+            async move {
+                // Delay start to render a loading spinner
+                gloo_timers::future::TimeoutFuture::new(100).await;
+                map_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
             }
-        },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
+        }).suspend()?;
+
+        match &*aln.read_unchecked() {
+            Ok(data) => cached_res.set(data.clone()),
+            Err(e) => return rsx! { { "Error: ".to_string() + &e.message } },
+        }
+    }
+    rsx! {
+        CopyableMapResult { data: cached_res.read().clone() }
     }
 }
 

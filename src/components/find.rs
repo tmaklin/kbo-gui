@@ -68,7 +68,7 @@ impl Sortable for FindResultField {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct FindResult {
+pub struct FindResult {
     query_file: String,
     ref_file: String,
     start: u64,
@@ -377,32 +377,36 @@ pub fn Find(
     interactive: ReadOnlySignal<bool>,
     min_len: ReadOnlySignal<u64>,
     detailed: ReadOnlySignal<bool>,
+    cached_res: Signal<Vec::<FindResult>>,
     find_opts: kbo::FindOpts,
     build_opts: kbo::BuildOpts,
 ) -> Element {
 
-    let res = use_resource(move || {
-        let ref_file_name = ref_contigs.read()[0].0.clone();
-        let opts = build_opts.clone();
-        async move {
-            gloo_timers::future::TimeoutFuture::new(100).await;
-            let indexes = build_runner(&ref_contigs.read(), opts, *detailed.read()).await;
-            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_file_name, find_opts).await
-        }
-    }).suspend()?;
-
-    match &*res.read_unchecked() {
-        Ok(data) => {
-            let req_len = *min_len.read();
-            let filtered = data.iter().filter_map(|x| if x.length >= req_len{ Some(x.clone()) } else { None } ).collect::<Vec<FindResult>>();
-            rsx! {
-                if *interactive.read() {
-                    SortableFindResultTable { data: filtered }
-                } else {
-                    CopyableFindResultTable { data: filtered }
-                }
+    if cached_res.is_empty() {
+        let res = use_resource(move || {
+            let ref_file_name = ref_contigs.read()[0].0.clone();
+            let opts = build_opts.clone();
+            async move {
+                gloo_timers::future::TimeoutFuture::new(100).await;
+                let indexes = build_runner(&ref_contigs.read(), opts, *detailed.read()).await;
+                find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_file_name, find_opts).await
             }
-        },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
+        }).suspend()?;
+
+        match &*res.read_unchecked() {
+            Ok(data) => cached_res.set(data.clone()),
+            Err(e) => return rsx! { { "Error: ".to_string() + &e.message } },
+        }
+    }
+
+    let req_len = *min_len.read();
+    let data = cached_res.read();
+    let filtered = data.iter().filter_map(|x| if x.length >= req_len{ Some(x.clone()) } else { None } ).collect::<Vec<FindResult>>();
+    rsx! {
+        if *interactive.read() {
+            SortableFindResultTable { data: filtered }
+        } else {
+            CopyableFindResultTable { data: filtered }
+        }
     }
 }

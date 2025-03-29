@@ -88,9 +88,8 @@ pub fn Kbo() -> Element {
     let repository = env!("CARGO_PKG_REPOSITORY").to_string();
     let homepage = env!("CARGO_PKG_HOMEPAGE").to_string();
 
-    let mut ref_error: Signal<String> = use_signal(String::new);
-    let mut query_error: Signal<String> = use_signal(String::new);
-
+    let ref_error: Signal<String> = use_signal(String::new);
+    let query_error: Signal<String> = use_signal(String::new);
 
     // Options for indexing reference
     let kmer_size: Signal<u32> = use_signal(|| 51);
@@ -107,6 +106,46 @@ pub fn Kbo() -> Element {
     // Output options
     let mut interactive: Signal<bool> = use_signal(|| true);
     let mut detailed: Signal<bool> = use_signal(|| false);
+
+    // Cached results
+    let mut input_changed: Signal<bool> = use_signal(|| false);
+    let mut call_result: Signal<(Vec::<CallResult>, String, Vec<(String, usize)>)> = use_signal(|| (Vec::new(), String::new(), Vec::new()));
+    let mut find_result: Signal<Vec<FindResult>> = use_signal(Vec::new);
+    let mut map_result: Signal<Vec<(String, Vec<u8>)>> = use_signal(Vec::new);
+
+    let query_contigs = use_resource(move || async move {
+        let res = crate::util::read_fasta_files(&query_files.read()).await;
+        n_queries.set(query_files.read().len());
+        input_changed.set(true);
+        res
+    });
+
+    let ref_contigs = use_resource(move || async move {
+        let res = crate::util::read_fasta_files(&ref_files.read()).await;
+        n_refs.set(ref_files.read().len());
+        input_changed.set(true);
+        res
+    });
+
+    if *n_refs.read() > 0 && *n_queries.read() > 0 {
+        if let Ok(ref_data) = (*ref_contigs.read()).as_ref().unwrap() {
+            references.set((*ref_data.clone()).to_vec());
+            // Clear cached results
+        }
+
+        if let Ok(query_data) = (*query_contigs.read()).as_ref().unwrap() {
+            queries.set((*query_data.clone()).to_vec());
+        }
+    }
+
+    if *input_changed.read() {
+        match *kbo_mode.read() {
+            KboMode::Call => call_result.set((Vec::new(), String::new(), Vec::new())),
+            KboMode::Find => find_result.set(Vec::new()),
+            KboMode::Map => map_result.set(Vec::new()),
+        }
+        input_changed.set(false);
+    }
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -210,29 +249,10 @@ pub fn Kbo() -> Element {
 
               // Dynamically rendered components,
               // based on which KboMode is selected.
-              {
-
-                  let query_contigs = use_resource(move || async move {
-                      let res = crate::util::read_fasta_files(&query_files.read()).await;
-                      n_queries.set(query_files.read().len());
-                      res
-                  });
-
-                  let ref_contigs = use_resource(move || async move {
-                      let res = crate::util::read_fasta_files(&ref_files.read()).await;
-                      n_refs.set(ref_files.read().len());
-                      res
-                  });
-
-                  if *n_refs.read() > 0 && *n_queries.read() > 0 {
-                      if let Ok(ref_data) = (&*ref_contigs.read()).as_ref().unwrap() {
-                          references.set((*ref_data.clone()).to_vec());
-                      }
-                      if let Ok(query_data) = (&*query_contigs.read()).as_ref().unwrap() {
-                          queries.set((*query_data.clone()).to_vec());
-                      }
-                      rsx! {
-                          div { class: "row-results",
+              div { class: "row-results",
+                    {
+                        if *n_refs.read() > 0 && *n_queries.read() > 0 {
+                            rsx! {
                                 SuspenseBoundary {
                                     fallback: |_| rsx! {
                                         span { class: "loader" },
@@ -244,7 +264,7 @@ pub fn Kbo() -> Element {
                                             call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
                                             call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
                                             call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-                                            rsx!{ Call { ref_contigs: references, query_contigs: queries, interactive, call_opts } }
+                                            rsx!{ Call { ref_contigs: references, query_contigs: queries, interactive, cached_res: call_result, call_opts } }
                                         },
                                         KboMode::Find => {
                                             // Mode `Find`
@@ -258,7 +278,7 @@ pub fn Kbo() -> Element {
                                             build_opts.dedup_batches = *dedup_batches.read();
                                             build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
-                                            rsx! { Find { ref_contigs: references, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
+                                            rsx! { Find { ref_contigs: references, query_contigs: queries, interactive, min_len, detailed, cached_res: find_result, find_opts, build_opts } }
                                         },
                                         KboMode::Map => {
                                             // Options for indexing reference
@@ -274,15 +294,15 @@ pub fn Kbo() -> Element {
                                             map_opts.fill_gaps = *do_vc.read();
                                             map_opts.sbwt_build_opts = build_opts;
 
-                                            rsx! { Map { ref_contigs: references, query_contigs: queries, map_opts } }
+                                            rsx! { Map { ref_contigs: references, query_contigs: queries, cached_res: map_result, map_opts } }
                                         },
                                     }
                                 }
-                          }
-                      }
-                  } else {
-                      rsx! { { "" } }
-                  }
+                            }
+                        } else {
+                            rsx! { { "".to_string() } }
+                        }
+                    }
               }
         }
         footer { class: "footer",
