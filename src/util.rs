@@ -22,6 +22,12 @@ pub struct ContigData {
     pub seq: Vec<u8>,
 }
 
+#[derive(Debug,Clone)]
+pub struct BuilderErr {
+    code: usize,
+    message: String,
+}
+
 pub fn build_sbwt(
     ref_data: &[Vec<u8>],
     opts: Option<kbo::BuildOpts>,
@@ -59,4 +65,11 @@ pub async fn read_fasta_files(
     };
 
     Ok(contigs)
+}
+
+pub async fn sbwt_builder(
+    seq_data: &[Vec<u8>],
+    build_opts: kbo::BuildOpts,
+) -> Result<(sbwt::SbwtIndexVariant, sbwt::LcsArray), BuilderErr> {
+    Ok(crate::util::build_sbwt(seq_data, Some(build_opts)))
 }

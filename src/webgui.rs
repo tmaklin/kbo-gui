@@ -75,6 +75,12 @@ pub fn Kbo() -> Element {
     let ref_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(|| { Vec::with_capacity(1) });
     let query_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(Vec::new);
 
+    let mut n_refs: Signal<usize> = use_signal(|| 0);
+    let mut n_queries: Signal<usize> = use_signal(|| 0);
+
+    let mut references: Signal<Vec<(String, Vec<crate::util::ContigData>)>> = use_signal(Vec::new);
+    let mut queries: Signal<Vec<(String, Vec<crate::util::ContigData>)>> = use_signal(Vec::new);
+
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
     let version = env!("CARGO_PKG_VERSION").to_string();
@@ -97,6 +103,9 @@ pub fn Kbo() -> Element {
     let max_gap_len: Signal<u64> = use_signal(|| 0_u64);
     let do_vc: Signal<bool> = use_signal(|| true);
     let do_gapfill: Signal<bool> = use_signal(|| true);
+
+    // Output options
+    let mut interactive: Signal<bool> = use_signal(|| true);
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -143,11 +152,6 @@ pub fn Kbo() -> Element {
               }
 
               div { class: "row",
-                    div { class: "column-left", br {} },
-                    div { class: "column-right" },
-              }
-
-              div { class: "row",
                     div { class: "column-left",
                           details {
                               summary { "Indexing options" }
@@ -166,94 +170,95 @@ pub fn Kbo() -> Element {
                     }
               }
 
+              div { class: "row",
+                    div { class: "column-left" },
+                    div { class: "column-right",
+                          if *kbo_mode.read() == KboMode::Map {
+                              br {}
+                          } else {
+                              input {
+                                  r#type: "checkbox",
+                                  name: "interactive",
+                                  id: "interactive",
+                                  checked: true,
+                                  onchange: move |_| {
+                                      let old: bool = *interactive.read();
+                                      *interactive.write() = !old;
+                                  }
+                              },
+                              "Interactive output",
+                          }
+                    }
+              }
+
               // Dynamically rendered components,
               // based on which KboMode is selected.
               {
 
                   let query_contigs = use_resource(move || async move {
-                      crate::util::read_fasta_files(&query_files.read()).await
+                      let res = crate::util::read_fasta_files(&query_files.read()).await;
+                      n_queries.set(query_files.read().len());
+                      res
                   });
 
                   let ref_contigs = use_resource(move || async move {
-                      crate::util::read_fasta_files(&ref_files.read()).await
+                      let res = crate::util::read_fasta_files(&ref_files.read()).await;
+                      n_refs.set(ref_files.read().len());
+                      res
                   });
 
-                  if ref_files.read().len() > 0 {
-                      if let Some(queries) = &*query_contigs.read_unchecked() {
-                          if let Some(reference) = &*ref_contigs.read_unchecked() {
-                              match *kbo_mode.read() {
+                  if *n_refs.read() > 0 && *n_queries.read() > 0 {
+                      if let Ok(ref_data) = (&*ref_contigs.read()).as_ref().unwrap() {
+                          references.set((*ref_data.clone()).to_vec());
+                      }
+                      if let Ok(query_data) = (&*query_contigs.read()).as_ref().unwrap() {
+                          queries.set((*query_data.clone()).to_vec());
+                      }
+                      rsx! {
+                          div { class: "row-results",
+                                SuspenseBoundary {
+                                    fallback: |_| rsx! {
+                                        span { class: "loader" },
+                                    },
+                                    match *kbo_mode.read() {
+                                        KboMode::Call => {
+                                            let mut call_opts = kbo::CallOpts::default();
+                                            call_opts.max_error_prob = *max_error_prob.read();
+                                            call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
+                                            call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
+                                            call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+                                            rsx!{ Call { ref_contigs: references, query_contigs: queries, interactive, call_opts } }
+                                        },
+                                        _ => rsx! { { "Not implemented".to_string() } }
+                                    }
+                                    // {
+                                    //     match *kbo_mode.read() {
+                                    //         KboMode::Call => {
 
-                                  KboMode::Call => {
-                                      let mut call_opts = kbo::CallOpts::default();
-                                      call_opts.max_error_prob = *max_error_prob.read();
-                                      call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
-                                      call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
-                                      call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+                                    //             let variants = use_resource(move || {
+                                    //                 let opts = call_opts.clone();
+                                    //                 let refs = (&*ref_contigs.read()).clone();
+                                    //                 let queries = (&*query_contigs.read()).clone();
+                                    //                 async move {
+                                    //                     call_runner(&refs, &queries, opts).await
+                                    //                 }
+                                    //             }).suspend()?;
 
-                                      // Mode `Find`
-                                      rsx! {
-                                          Call {
-                                              queries: queries.as_ref().unwrap().clone(),
-                                              reference: reference.as_ref().unwrap()[0].clone(),
-                                              call_opts,
-                                          }
-                                      }
-                                  },
-
-                                  KboMode::Find => {
-                                      // Mode `Find`
-                                      let mut find_opts = kbo::FindOpts::default();
-                                      find_opts.max_error_prob = *max_error_prob.read();
-                                      find_opts.max_gap_len = *max_gap_len.read() as usize;
-
-                                      // Options for indexing reference
-                                      let mut build_opts = kbo::BuildOpts::default();
-                                      build_opts.k = *kmer_size.read() as usize;
-                                      build_opts.dedup_batches = *dedup_batches.read();
-                                      build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                      rsx! {
-                                          Find {
-                                              queries: queries.as_ref().unwrap().clone(),
-                                              reference: reference.as_ref().unwrap()[0].clone(),
-                                              find_opts,
-                                              build_opts,
-                                              min_len,
-                                          }
-                                      }
-                                  },
-
-                                  KboMode::Map => {
-                                      let mut map_opts = kbo::MapOpts::default();
-                                      map_opts.max_error_prob = *max_error_prob.read();
-                                      map_opts.call_variants = *do_vc.read();
-                                      map_opts.fill_gaps = *do_vc.read();
-
-                                      // Options for indexing reference
-                                      let mut build_opts = kbo::BuildOpts::default();
-                                      build_opts.build_select = true;
-                                      build_opts.k = *kmer_size.read() as usize;
-                                      build_opts.dedup_batches = *dedup_batches.read();
-                                      build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                      rsx! {
-                                          Map {
-                                              queries: queries.as_ref().unwrap().clone(),
-                                              reference: reference.as_ref().unwrap()[0].clone(),
-                                              map_opts,
-                                              build_opts,
-                                          }
-                                      }
-                                  },
-                              }
-                          } else {
-                              rsx! { { "loading" } }
+                                    //             rsx! {
+                                    //                 match &*variants.read_unchecked() {
+                                    //                     Ok(data) => rsx! { SortableCallResultTable { data: data.clone() } },
+                                    //                     _ => rsx! { { "no data".to_string() } }
+                                    //                 }
+                                    //             }
+                                    //         },
+                                    //         _ => rsx! { { "not implemented".to_string() } },
+                                    //     }
+                                    // }
+                                }
                           }
-                      } else {
-                          rsx! { { "loading" } }
                       }
                   } else {
-                      rsx! { { "nothing" } }
+                      rsx! { { "" } }
                   }
               }
         }
@@ -272,3 +277,49 @@ pub fn Kbo() -> Element {
         }
     }
 }
+
+                                                    // KboMode::Find => {
+                                                    //     // Mode `Find`
+                                                    //     let mut find_opts = kbo::FindOpts::default();
+                                                    //     find_opts.max_error_prob = *max_error_prob.read();
+                                                    //     find_opts.max_gap_len = *max_gap_len.read() as usize;
+
+                                                    //     // Options for indexing reference
+                                                    //     let mut build_opts = kbo::BuildOpts::default();
+                                                    //     build_opts.k = *kmer_size.read() as usize;
+                                                    //     build_opts.dedup_batches = *dedup_batches.read();
+                                                    //     build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+
+                                                    //     rsx! {
+                                                    //         Find {
+                                                    //             queries: queries.as_ref().unwrap().clone(),
+                                                    //             reference: reference.as_ref().unwrap()[0].clone(),
+                                                    //             find_opts,
+                                                    //             build_opts,
+                                                    //             min_len,
+                                                    //         }
+                                                    //     }
+                                                    // },
+
+                                                    // KboMode::Map => {
+                                                    //     let mut map_opts = kbo::MapOpts::default();
+                                                    //     map_opts.max_error_prob = *max_error_prob.read();
+                                                    //     map_opts.call_variants = *do_vc.read();
+                                                    //     map_opts.fill_gaps = *do_vc.read();
+
+                                                    //     // Options for indexing reference
+                                                    //     let mut build_opts = kbo::BuildOpts::default();
+                                                    //     build_opts.build_select = true;
+                                                    //     build_opts.k = *kmer_size.read() as usize;
+                                                    //     build_opts.dedup_batches = *dedup_batches.read();
+                                                    //     build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+
+                                                    //     rsx! {
+                                                    //         Map {
+                                                    //             queries: queries.as_ref().unwrap().clone(),
+                                                    //             reference: reference.as_ref().unwrap()[0].clone(),
+                                                    //             map_opts,
+                                                    //             build_opts,
+                                                    //         }
+                                                    //     }
+                                                    // },

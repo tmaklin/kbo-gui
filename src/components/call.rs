@@ -12,7 +12,6 @@
 // at your option.
 //
 use crate::dioxus_sortable::*;
-use crate::components::common::BuildOptsSelector;
 
 use chrono::offset::Local;
 use dioxus::prelude::*;
@@ -62,7 +61,7 @@ impl Sortable for CallResultField {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct CallResult {
+pub struct CallResult {
     chromosome: String,
     position: u64,
     id: String,
@@ -76,7 +75,7 @@ struct CallResult {
 }
 
 #[component]
-fn SortableCallResultTable(
+pub fn SortableCallResultTable(
     data: Vec::<CallResult>,
 ) -> Element {
     let sorter = use_sorter::<CallResultField>();
@@ -271,112 +270,85 @@ pub fn CallOptsSelector(
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+pub struct CallRunnerErr {
+    code: usize,
+    message: String,
+}
+
+pub async fn call_runner(
+    reference: &[(String, Vec<crate::util::ContigData>)],
+    queries: &[(String, Vec<crate::util::ContigData>)],
+    call_opts: kbo::CallOpts,
+) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{
+
+    let query_data: Vec<Vec<u8>> = queries[0].1.iter().map(|x| x.seq.clone()).collect();
+    let index = crate::util::sbwt_builder(&query_data, call_opts.sbwt_build_opts.clone()).await;
+
+    match index {
+        Ok((sbwt_query, sbwt_lcs)) => {
+
+            let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(reference[0].1.len());
+            let mut res: Vec<CallResult> = Vec::new();
+
+            reference[0].1.iter().for_each(|contig| {
+                let mut header_contents = contig.name.split_whitespace();
+                let contig_name = header_contents.next().expect("Contig name");
+                contig_info.push((contig.name.clone(), contig.seq.len()));
+                let variants = kbo::call(&sbwt_query, &sbwt_lcs, &contig.seq, call_opts.clone());
+
+                res.extend(variants.iter().flat_map(|variant| {
+
+                    let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
+                    if flanking.is_some() {
+                        let (var1, var2) = flanking.unwrap();
+                        let record1 = format_call_result(&var1, &contig.seq, contig_name);
+                        let record2 = format_call_result(&var2, &contig.seq, contig_name);
+                        vec![record1, record2]
+                    } else {
+                        vec![format_call_result(variant, &contig.seq, contig_name)]
+                    }
+                }));
+            });
+            if !res.is_empty() {
+                Ok((contig_info, res))
+            } else {
+                Err(CallRunnerErr{ code: 0, message: "No variants detected.".to_string() })
+            }
+        },
+        Err(_) => Err(CallRunnerErr{ code: 1, message: "Variant calling error.".to_string() })
+    }
+}
+
 #[component]
 pub fn Call(
-    queries: Vec<(String, Vec<crate::util::ContigData>)>,
-    reference: (String, Vec<crate::util::ContigData>),
+    ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    interactive: ReadOnlySignal<bool>,
     call_opts: kbo::CallOpts,
 ) -> Element {
 
-    let mut res = use_signal(Vec::<CallResult>::new);
-
-    // Options for running queries
-    let mut interactive: Signal<bool> = use_signal(|| true);
-
-    let mut contig_info: Signal<Vec<(String, usize)>> = use_signal(|| Vec::with_capacity(reference.1.len()));
-
-    let mut res_error: Signal<String> = use_signal(String::new);
-    let mut show_spinner: Signal<bool> = use_signal(|| false);
-
-    rsx! {
-        div { class: "row-run",
-              div { class: "column",
-                    button {
-                        onclick: move |_event| {
-                            if !reference.1.is_empty() && !queries.is_empty() {
-                                *show_spinner.write() = true;
-
-                                // Clear old results
-                                res.write().clear();
-                                contig_info.write().clear();
-
-                                // Options for indexing
-                                let build_opts = call_opts.sbwt_build_opts.clone();
-
-                                let query_data = queries[0].1.iter().map(|contents| {
-                                    contents.seq.clone()
-                                }).collect::<Vec<Vec<u8>>>();
-
-                                let (sbwt_query, lcs_query) = crate::util::build_sbwt(&query_data, Some(build_opts));
-
-                                *res.write() = Vec::<CallResult>::new();
-                                reference.1.iter().for_each(|contig| {
-                                    let mut header_contents = contig.name.split_whitespace();
-                                    let contig_name = header_contents.next().expect("Contig name");
-                                    contig_info.write().push((contig.name.clone(), contig.seq.len()));
-                                    let variants = kbo::call(&sbwt_query, &lcs_query, &contig.seq, call_opts.clone());
-
-                                    if variants.is_empty() && res.read().is_empty() {
-                                        *res_error.write() = "No variants detected, try increasing k-mer size.".to_string();
-                                    } else {
-                                        *res_error.write() = String::new();
-                                    }
-
-                                    res.write().extend(variants.iter().flat_map(|variant| {
-
-                                        let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
-                                        if flanking.is_some() {
-                                            let (var1, var2) = flanking.unwrap();
-                                            let record1 = format_call_result(&var1, &contig.seq, contig_name);
-                                            let record2 = format_call_result(&var2, &contig.seq, contig_name);
-                                            vec![record1, record2]
-                                        } else {
-                                            vec![format_call_result(variant, &contig.seq, contig_name)]
-                                        }
-                                    }));
-
-                                    *show_spinner.write() = false;
-                                });
-                            }
-                        },
-                        "Run analysis",
-                    }
-                    if *show_spinner.read() {
-                        span { class: "loader" },
-                    }
-              }
-              div { class: "column",
-                    input {
-                        r#type: "checkbox",
-                        name: "interactive",
-                        id: "interactive",
-                        checked: true,
-                        onchange: move |_| {
-                            let old: bool = *interactive.read();
-                            *interactive.write() = !old;
-                        }
-                    },
-                    "Interactive output",
-              }
+    let variants = use_resource(move || {
+        let opts = call_opts.clone();
+        async move {
+            // Delay start to render a loading spinner
+            gloo_timers::future::TimeoutFuture::new(100).await;
+            call_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
         }
+    }).suspend()?;
 
-        div { class: "row-results",
-              if res.read().len() > 0 && res_error.read().is_empty() {
-                  {
-                      let data = res.read().to_vec();
-                      rsx! {
-                          if *interactive.read() {
-                              SortableCallResultTable { data }
-                          } else {
-                              CopyableCallResultTable { data, ref_path: reference.0, contig_info: contig_info.read().to_vec() }
-                          }
-                      }
-                  }
-              } else if !res_error.read().is_empty() {
-                  div {
-                      { res_error.read().to_string() }
-                  }
-              }
-        }
+    let ref_path = ref_contigs.read()[0].0.clone();
+    match &*variants.read_unchecked() {
+        Ok(data) => {
+            rsx! {
+                if *interactive.read() {
+                    SortableCallResultTable { data: data.1.to_vec() }
+                } else {
+                    CopyableCallResultTable { data: data.1.to_vec(), ref_path, contig_info: data.0.to_vec() }
+                }
+            }
+        },
+        Err(e) => rsx! { { "Error: ".to_string() + &e.message } }
     }
 }

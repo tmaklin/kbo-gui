@@ -27,6 +27,8 @@ manganis = "0.2.2"
 ## Subdependencies that need features enabled
 getrandom = { version = "0.2", features = ["js"] }
 
+gloo-timers = { version = "0.3.0", features = ["futures"] }
+
 [dependencies.needletail]
 version = "0.6.0"
 features = ["flate2"]
