@@ -76,116 +76,97 @@ pub fn MapOptsSelector(
     }
 }
 
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+pub struct MapRunnerErr {
+    code: usize,
+    message: String,
+}
+
+async fn map_runner(
+    reference: &[(String, Vec<crate::util::ContigData>)],
+    queries: &[(String, Vec<crate::util::ContigData>)],
+    map_opts: kbo::MapOpts,
+) -> Result<Vec<(String, Vec<u8>)>, MapRunnerErr> {
+
+    let aln = queries.iter().map(|(query_file, query_contig)| {
+
+        let (sbwt, lcs) = crate::util::build_sbwt(
+            &query_contig.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
+            Some(map_opts.sbwt_build_opts.clone()),
+        );
+
+        let res: Vec<u8> = reference[0].1.iter().flat_map(|ref_contig| {
+                                    kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
+                                }).collect();
+        (query_file.clone(), res)
+    }).collect::<Vec<(String, Vec<u8>)>>();
+
+    if !aln.is_empty() {
+        return Ok(aln)
+    }
+
+    Err(MapRunnerErr{ code: 1, message: "Mapping error.".to_string() })
+}
+
 #[component]
 pub fn Map(
-    queries: Vec<(String, Vec<crate::util::ContigData>)>,
-    reference: (String, Vec<crate::util::ContigData>),
+    ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
     map_opts: kbo::MapOpts,
-    build_opts: kbo::BuildOpts,
 ) -> Element {
 
-    let mut res = use_signal(Vec::<(String, Vec<u8>)>::new);
-
-    let mut res_error: Signal<String> = use_signal(String::new);
-
-    rsx! {
-        div { class: "row",
-              div { class: "column-left", br {} },
-              div { class: "column-right" },
+    let aln = use_resource(move || {
+        let opts = map_opts.clone();
+        async move {
+            // Delay start to render a loading spinner
+            gloo_timers::future::TimeoutFuture::new(100).await;
+            map_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
         }
+    }).suspend()?;
 
-        div { class: "row-run",
-              div { class: "column",
-                    button {
-                        onclick: move |_event| {
-                            if !reference.1.is_empty() && !queries.is_empty() {
-                                // Clear old results
-                                res.write().clear();
-                                *res_error.write() = String::new();
-
-                                queries.iter().for_each(|(query_file, query_contig)| {
-
-                                    let (sbwt, lcs) = crate::util::build_sbwt(
-                                        &query_contig.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
-                                        Some(build_opts.clone()),
-                                    );
-
-                                    let my_res: Vec<u8> = reference.1.iter().flat_map(|ref_contig| {
-                                        kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
-                                    }).collect();
-
-                                    if my_res.is_empty() && res.read().is_empty() {
-                                        *res_error.write() = "Nothing to report!".to_string();
-                                    } else {
-                                        res.write().push((">".to_string() + query_file, my_res));
-                                    }
-                                });
-                            }
-                        },
-                        "Run analysis",
-                    }
-              }
-              div { class: "column" }
-              //
-              // TODO Look into implementing an interactive alignment view for map.
-              //
-              // div { class: "column",
-              //       input {
-              //           r#type: "checkbox",
-              //           name: "interactive",
-              //           id: "interactive",
-              //           checked: true,
-              //           onchange: move |_| {
-              //               let old: bool = *interactive.read();
-              //               *interactive.write() = !old;
-              //           }
-              //       },
-              //       "Interactive output",
-              // }
-        }
-        div { class: "row-results",
-              if res.read().len() > 0 && res_error.read().is_empty() {
-                  {
-                      rsx! {
-                          CopyableMapResult { data: res.read().to_vec() }
-                      }
-                  }
-              } else if !res_error.read().is_empty() {
-                  div {
-                      { res_error.read().to_string() }
-                  }
-              }
-        }
+    match &*aln.read_unchecked() {
+        Ok(data) => {
+            rsx! {
+                CopyableMapResult { data: data.to_vec() }
+            }
+        },
+        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
     }
 }
 
 #[component]
 fn CopyableMapResult(
-    data: Vec<(String, Vec::<u8>)>,
+    data: Vec<(String, Vec<u8>)>,
 ) -> Element {
 
-    let mut total_len = 0;
-    let display = data.iter().map(|(seq, contents)| {
+    let display = data.iter().map(|(file, aln)| {
         let mut counter = 0;
-        total_len += contents.len();
-        seq.clone() + "\n" + &contents.iter().map(|x| {
-            counter += 1;
-            if counter % 80 == 0 {
-                counter = 0;
-                (*x as char).to_string() + "\n"
-            } else {
-                (*x as char).to_string()
-            }
-        }).collect::<String>()
-            + "\n"
+        let mut out = [">".to_owned() + file + &'\n'.to_string(),
+             aln.iter().flat_map(|x| {
+                 counter += 1;
+                 if counter % 80 == 0 {
+                     counter = 0;
+                     vec![*x as char, '\n']
+                 } else {
+                     vec![*x as char]
+                 }
+             }).collect::<String>()].concat();
+        if out.as_bytes()[out.len() - 1] != b'\n' {
+            out += "\n";
+        }
+        out
     }).collect::<String>();
+
+    let rows = display.len().div_ceil(80);
 
     rsx! {
         textarea {
             id: "find-result",
             name: "find-result",
             value: display,
-            rows: total_len.div_ceil(80),
+            rows: rows,
             width: "95%",
         },
     }

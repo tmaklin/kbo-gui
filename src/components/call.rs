@@ -277,7 +277,7 @@ pub struct CallRunnerErr {
     message: String,
 }
 
-pub async fn call_runner(
+async fn call_runner(
     reference: &[(String, Vec<crate::util::ContigData>)],
     queries: &[(String, Vec<crate::util::ContigData>)],
     call_opts: kbo::CallOpts,

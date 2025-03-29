@@ -229,31 +229,24 @@ pub fn Kbo() -> Element {
                                             call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
                                             rsx!{ Call { ref_contigs: references, query_contigs: queries, interactive, call_opts } }
                                         },
+                                        KboMode::Map => {
+                                            // Options for indexing reference
+                                            let mut build_opts = kbo::BuildOpts::default();
+                                            build_opts.build_select = true;
+                                            build_opts.k = *kmer_size.read() as usize;
+                                            build_opts.dedup_batches = *dedup_batches.read();
+                                            build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+
+                                            let mut map_opts = kbo::MapOpts::default();
+                                            map_opts.max_error_prob = *max_error_prob.read();
+                                            map_opts.call_variants = *do_vc.read();
+                                            map_opts.fill_gaps = *do_vc.read();
+                                            map_opts.sbwt_build_opts = build_opts;
+
+                                            rsx! { Map { ref_contigs: references, query_contigs: queries, map_opts } }
+                                        },
                                         _ => rsx! { { "Not implemented".to_string() } }
                                     }
-                                    // {
-                                    //     match *kbo_mode.read() {
-                                    //         KboMode::Call => {
-
-                                    //             let variants = use_resource(move || {
-                                    //                 let opts = call_opts.clone();
-                                    //                 let refs = (&*ref_contigs.read()).clone();
-                                    //                 let queries = (&*query_contigs.read()).clone();
-                                    //                 async move {
-                                    //                     call_runner(&refs, &queries, opts).await
-                                    //                 }
-                                    //             }).suspend()?;
-
-                                    //             rsx! {
-                                    //                 match &*variants.read_unchecked() {
-                                    //                     Ok(data) => rsx! { SortableCallResultTable { data: data.clone() } },
-                                    //                     _ => rsx! { { "no data".to_string() } }
-                                    //                 }
-                                    //             }
-                                    //         },
-                                    //         _ => rsx! { { "not implemented".to_string() } },
-                                    //     }
-                                    // }
                                 }
                           }
                       }
@@ -301,25 +294,3 @@ pub fn Kbo() -> Element {
                                                     //     }
                                                     // },
 
-                                                    // KboMode::Map => {
-                                                    //     let mut map_opts = kbo::MapOpts::default();
-                                                    //     map_opts.max_error_prob = *max_error_prob.read();
-                                                    //     map_opts.call_variants = *do_vc.read();
-                                                    //     map_opts.fill_gaps = *do_vc.read();
-
-                                                    //     // Options for indexing reference
-                                                    //     let mut build_opts = kbo::BuildOpts::default();
-                                                    //     build_opts.build_select = true;
-                                                    //     build_opts.k = *kmer_size.read() as usize;
-                                                    //     build_opts.dedup_batches = *dedup_batches.read();
-                                                    //     build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                                    //     rsx! {
-                                                    //         Map {
-                                                    //             queries: queries.as_ref().unwrap().clone(),
-                                                    //             reference: reference.as_ref().unwrap()[0].clone(),
-                                                    //             map_opts,
-                                                    //             build_opts,
-                                                    //         }
-                                                    //     }
-                                                    // },
