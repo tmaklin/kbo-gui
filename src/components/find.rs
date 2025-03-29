@@ -144,22 +144,23 @@ fn CopyableFindResultTable(
     data: Vec::<FindResult>,
 ) -> Element {
 
-    let display = data.iter().map(|x| {
+    let header = "query\tref\tq.start\tq.end\tstrand\tlength\tmismatches\tgap_bases\tgap_opens\tidentity\tcoverage\tquery.contig\tref.contig";
+    let display = header.to_string() + &data.iter().map(|x| {
         let identity_rounded: String = format!("{:.2}", x.identity);
         let coverage_rounded: String = format!("{:.2}", x.coverage);
 
-            x.query_file.clone() + "," +
-            &x.ref_file.clone() + "," +
-            &x.start.to_string() + "," +
-            &x.end.to_string() + "," +
-            &x.strand.to_string() + "," +
-            &x.length.to_string() + "," +
-            &x.mismatches.to_string() + "," +
-            &x.gap_bases.to_string() + "," +
-            &x.gap_opens.to_string() + "," +
-            &identity_rounded.to_string() + "," +
-            &coverage_rounded.to_string() + "," +
-            &x.query_contig.clone() + "," +
+            x.query_file.clone() + "\t" +
+            &x.ref_file.clone() + "\t" +
+            &x.start.to_string() + "\t" +
+            &x.end.to_string() + "\t" +
+            &x.strand.to_string() + "\t" +
+            &x.length.to_string() + "\t" +
+            &x.mismatches.to_string() + "\t" +
+            &x.gap_bases.to_string() + "\t" +
+            &x.gap_opens.to_string() + "\t" +
+            &identity_rounded.to_string() + "\t" +
+            &coverage_rounded.to_string() + "\t" +
+            &x.query_contig.clone() + "\t" +
             &x.ref_contig.clone() + "\n"
     }).collect::<String>();
 
@@ -275,147 +276,133 @@ pub fn FindOptsSelector(
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+pub struct FindRunnerErr {
+    code: usize,
+    message: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+pub struct BuildRunnerErr {
+    code: usize,
+    message: String,
+}
+
+async fn find_runner(
+    indexes: &[((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)],
+    queries: &[(String, Vec<crate::util::ContigData>)],
+    reference_file: &str,
+    find_opts: kbo::FindOpts,
+) -> Result<Vec<FindResult>, FindRunnerErr> {
+
+    let res = indexes.iter().flat_map(|((sbwt, lcs), ref_contig, ref_bases)| {
+        queries.iter().flat_map(|(query_file, contigs)| {
+            let mut run_lengths: Vec<FindResult> = Vec::new();
+
+            // Get local alignments for forward strand
+            contigs.iter().for_each(|contig| {
+                let query_bases = contig.seq.len();
+                let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
+                run_lengths.extend(run_lengths_fwd.iter().map(|x| {
+                    format_find_result(x, query_file.clone(), reference_file.to_string(), contig.name.clone(), ref_contig.to_string(), query_bases, *ref_bases, '+')
+                }));
+
+                // Add local alignments for reverse complement
+                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
+                run_lengths.extend(run_lengths_rev.iter().map(|x| {
+                    format_find_result(x, query_file.clone(), reference_file.to_string(), contig.name.clone(), ref_contig.clone(), query_bases, *ref_bases, '-')
+                }));
+
+            });
+
+            run_lengths
+
+        }).collect::<Vec<FindResult>>()
+    }).collect::<Vec<FindResult>>();
+
+    if !res.is_empty() {
+        return Ok(res)
+    }
+
+    Err(FindRunnerErr{ code: 0, message: "No alignments detected.".to_string() })
+}
+
+async fn build_runner(
+    reference: &[(String, Vec<crate::util::ContigData>)],
+    build_opts: kbo::BuildOpts,
+    separately: bool,
+) -> Result<Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)>, BuildRunnerErr> {
+
+    let res = if !separately {
+        let seq_data: Vec<u8> = reference.iter().flat_map(|(_, contigs)| {
+            contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>()
+        }).collect();
+        let bases: usize = seq_data.len();
+        let data = &[seq_data];
+        let index = crate::util::sbwt_builder(
+            data,
+            build_opts.clone(),
+        );
+        vec![(index.await.unwrap(), reference[0].0.clone(), bases)]
+    } else {
+        let seq_data: Vec<(String, Vec<u8>)> = reference.iter().flat_map(|(_, contigs)| {
+            contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>()
+        }).collect();
+
+        let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)> = Vec::new();
+        for (contig_name, contig_seq) in seq_data {
+            let bases = contig_seq.len();
+            let data = &[contig_seq];
+            let index = crate::util::sbwt_builder(
+                data,
+                build_opts.clone(),
+            );
+            indexes.push((index.await.unwrap(), contig_name, bases));
+        }
+        indexes
+    };
+
+    if !res.is_empty() {
+        return Ok(res)
+    }
+    Err(BuildRunnerErr{ code: 0, message: "Couldn't index reference data.".to_string() })
+}
+
 #[component]
 pub fn Find(
-    queries: Vec<(String, Vec<crate::util::ContigData>)>,
-    reference: (String, Vec<crate::util::ContigData>),
+    ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    interactive: ReadOnlySignal<bool>,
+    min_len: ReadOnlySignal<u64>,
+    detailed: ReadOnlySignal<bool>,
     find_opts: kbo::FindOpts,
     build_opts: kbo::BuildOpts,
-    min_len: Signal<u64>,
 ) -> Element {
 
-    let mut res = use_signal(Vec::<FindResult>::new);
-
-    // Options for running queries
-    let mut detailed: Signal<bool> = use_signal(|| false);
-    let mut interactive: Signal<bool> = use_signal(|| true);
-
-    let mut res_error: Signal<String> = use_signal(String::new);
-
-    rsx! {
-        div { class: "row",
-              div { class: "column-left",
-                    input {
-                        r#type: "checkbox",
-                        name: "detailed",
-                        id: "detailed",
-                        checked: false,
-                        onchange: move |_| {
-                            let old: bool = *detailed.read();
-                            *detailed.write() = !old;
-                        }
-                    },
-                    "Split reference by contig",
-              }
-
-              div { class: "column-right" }
+    let res = use_resource(move || {
+        let ref_file_name = ref_contigs.read()[0].0.clone();
+        let opts = build_opts.clone();
+        async move {
+            gloo_timers::future::TimeoutFuture::new(100).await;
+            let indexes = build_runner(&ref_contigs.read(), opts, *detailed.read()).await;
+            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_file_name, find_opts).await
         }
+    }).suspend()?;
 
-        div { class: "row-run",
-              div { class: "column",
-                    button {
-                        onclick: move |_event| {
-                            if !reference.1.is_empty() && !queries.is_empty() {
-                                // Clear old results
-                                res.write().clear();
-                                *res_error.write() = String::new();
-
-                                let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, u64)> = Vec::new();
-
-                                if !*detailed.read() {
-                                    let bases: u64 = reference.1.iter().map(|contig| contig.seq.len() as u64).reduce(|a, b| a + b).unwrap();
-                                    indexes.push((crate::util::build_sbwt(
-                                        &[reference.1.iter().flat_map(|contig| contig.seq.clone()).collect()],
-                                        Some(build_opts.clone()),
-                                    ), reference.0.clone(), bases));
-                                } else {
-                                    reference.1.iter().for_each(|contig| {
-                                        let bases: u64 = contig.seq.len() as u64;
-                                        indexes.push((crate::util::build_sbwt(
-                                            &[contig.seq.clone()],
-                                            Some(build_opts.clone()),
-                                        ), contig.name.clone(), bases));
-                                    });
-                                }
-
-                                indexes.iter().for_each(|((sbwt, lcs), ref_contig, ref_bases)| {
-                                    queries.iter().for_each(|(query_file, contigs)| {
-                                        let mut run_lengths: Vec<FindResult> = Vec::new();
-
-                                        // Get local alignments for forward strand
-                                        contigs.iter().for_each(|contig| {
-                                            let query_bases = contig.seq.len();
-                                            let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
-                                            run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.to_string(), query_bases, *ref_bases as usize, '+')
-                                            }));
-
-                                            // Add local alignments for reverse complement
-                                            let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
-                                            run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                                                format_find_result(x, query_file.clone(), reference.0.clone(), contig.name.clone(), ref_contig.clone(), query_bases, *ref_bases as usize, '-')
-                                            }));
-
-                                            if run_lengths.is_empty() && res.read().is_empty() {
-                                                *res_error.write() = "No alignments detected.".to_string();
-                                            } else {
-                                                *res_error.write() = String::new();
-                                            }
-
-                                        });
-
-                                        // Print results with query and ref name added
-                                        res.write().extend(run_lengths);
-
-                                    });
-                                });
-                            }
-                        },
-                        "Run analysis",
-                    }
-              }
-              div { class: "column",
-                    input {
-                        r#type: "checkbox",
-                        name: "interactive",
-                        id: "interactive",
-                        checked: true,
-                        onchange: move |_| {
-                            let old: bool = *interactive.read();
-                            *interactive.write() = !old;
-                        }
-                    },
-                    "Interactive output",
-              }
-        }
-
-        div { class: "row-results",
-              if res.read().len() > 0 && res_error.read().is_empty() {
-                  {
-                      let data = res.read()
-                                    .to_vec()
-                                    .iter()
-                                    .filter_map(|x|
-                                                if x.length >= *min_len.read() {
-                                                    Some(x.clone())
-                                                } else {
-                                                    None
-                                                }
-                                    ).collect::<Vec<_>>();
-
-                      rsx! {
-                          if *interactive.read() {
-                              SortableFindResultTable { data }
-                          } else {
-                              CopyableFindResultTable { data }
-                          }
-                      }
-                  }
-              } else if !res_error.read().is_empty() {
-                  div {
-                      { res_error.read().to_string() }
-                  }
-              }
-        }
+    match &*res.read_unchecked() {
+        Ok(data) => {
+            let req_len = *min_len.read();
+            let filtered = data.iter().filter_map(|x| if x.length >= req_len{ Some(x.clone()) } else { None } ).collect::<Vec<FindResult>>();
+            rsx! {
+                if *interactive.read() {
+                    SortableFindResultTable { data: filtered }
+                } else {
+                    CopyableFindResultTable { data: filtered }
+                }
+            }
+        },
+        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
     }
 }
