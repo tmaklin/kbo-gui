@@ -1,6 +1,8 @@
 # kbo-gui
 Graphical user interface for [kbo](https://github.com/tmaklin/kbo) built with [Dioxus](https://dioxuslabs.com/).
 
+Try it out at [https://maklin.fi/kbo](https://maklin.fi/kbo).
+
 ## Usage
 See the [kbo documentation](https://docs.rs/kbo).
 
