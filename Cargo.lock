@@ -1804,6 +1804,7 @@ dependencies = [
 [[package]]
 name = "kbo"
 version = "0.5.0"
+source = "git+https://github.com/tmaklin/kbo?branch=derive-partialeq-for-opts#3b73bd7155be212f545712d73261256909ab5642"
 dependencies = [
  "embed-doc-image",
  "sbwt",
