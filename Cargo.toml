@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 ## core
-kbo = { git = "https://github.com/tmaklin/kbo", branch = "derive-partialeq-for-opts" }
+kbo = "0.5.1"
 sbwt = "0.3.7"
 tokio = { version = "1.40.0", features = ["rt"] }
 
