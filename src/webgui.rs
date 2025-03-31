@@ -225,12 +225,16 @@ pub fn Kbo() -> Element {
                   });
 
                   if *n_refs.read() > 0 && *n_queries.read() > 0 {
-                      if let Ok(ref_data) = (&*ref_contigs.read()).as_ref().unwrap() {
-                          references.set((*ref_data.clone()).to_vec());
-                      }
-                      if let Ok(query_data) = (&*query_contigs.read()).as_ref().unwrap() {
-                          queries.set((*query_data.clone()).to_vec());
-                      }
+                      use_effect(move || {
+                          if let Ok(ref_data) = (*ref_contigs.read()).as_ref().unwrap() {
+                              references.set((*ref_data.clone()).to_vec());
+                          }
+                      });
+                      use_effect(move || {
+                          if let Ok(query_data) = (*query_contigs.read()).as_ref().unwrap() {
+                              queries.set((*query_data.clone()).to_vec());
+                          }
+                      });
                       rsx! {
                           div { class: "row-results",
                                 SuspenseBoundary {
