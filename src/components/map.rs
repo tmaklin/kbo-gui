@@ -21,10 +21,10 @@ pub fn MapOptsSelector(
 ) -> Element {
     rsx! {
         div { class: "row-contents",
-              div { class: "column",
+              div { class: "column-right",
                     "Error tolerance"
               },
-              div { class: "column",
+              div { class: "column-left",
                     input {
                         r#type: "number",
                         id: "min_len",
@@ -40,10 +40,10 @@ pub fn MapOptsSelector(
               }
         }
         div { class: "row-contents",
-              div { class: "column",
-                    "Variant calling"
+              div { class: "column-right",
+                    "Call variants"
               },
-              div { class: "column",
+              div { class: "column-left",
                     input {
                         r#type: "checkbox",
                         id: "do_vc",
@@ -57,10 +57,10 @@ pub fn MapOptsSelector(
               }
         }
         div { class: "row-contents",
-              div { class: "column",
-                    "Gap filling"
+              div { class: "column-right",
+                    "Fill gaps"
               },
-              div { class: "column",
+              div { class: "column-left",
                     input {
                         r#type: "checkbox",
                         id: "do_gapfill",

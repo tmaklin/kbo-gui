@@ -83,7 +83,8 @@ body {
 }
 
 #header {
-    max-width: 1200px;
+  flex: 100%;
+  width: 100%;
 }
 
 .row-contents {
@@ -91,75 +92,61 @@ body {
   align-content: flex-start;
   text-align: left;
   width: 100%;
-  max-width: 800px;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
 .row {
   display: flex;
-  align-content: flex-start;
   text-align: left;
+  flex: 100%;
   width: 100%;
-  min-width: 800px;
-  max-width: 800px;
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
 .row-header {
+  flex: 100%;
+  width: 100%;
   text-align: center;
-}
-
-.row-logo {
-  text-align: center;
-}
-
-.row-run {
-  text-align: center;
-  margin-top: 2em;
-  display: flex;
-  min-width: 350px;
-  max-width: 800px;
 }
 
 .row-results {
-  text-align: center;
-    width: 100%;
-    max-width: 750px;
-    max-height: 400px;
-    overflow-x: auto;
-    overflow-y: auto;
-    margin-top: 1em;
-    margin-left: 1.5em;
-    margin-right: 0em;
-}
-
-.row-footer {
-  text-align: center;
   display: flex;
-  width: 100%;
-  min-width: 400px;
+  justify-content: center;
+  flex: 100%;
+  text-align: center;
+  width: 95%;
+  max-height: 400px;
+  overflow-x: auto;
+  overflow-y: auto;
+  margin-top: 1em;
+  margin-left: 1.5em;
+  margin-right: 0em;
 }
 
 .column {
-  flex: 50%;
-  width: 50%;
+  flex: 100%;
+  width: 100%;
 }
 
 .column-left {
-  flex: 50%;
-  width: 50%;
-  margin-right: 0.5em;
-  margin-left: 6.5em;
+  display: grid;
+  place-content: flex-start;
+  justify-content: right;
+  align-content: right;
+  flex: 100%;
+  width: 100%;
+  text-align: left;
   overflow-x: auto;
 }
 
 .column-right {
-  flex: 50%;
-  width: 50%;
-  margin-right: 0.5em;
-  margin-left: 5em;
+  display: grid;
+  place-content: flex-start;
+  justify-content: left;
+  flex: 85%;
+  width: 100%;
   overflow-x: auto;
 }
 
@@ -175,9 +162,20 @@ body {
 }
 
 .div-box {
-  min-width: 800px;
+  flex: 100%;
+  width: 80%;
+  min-width: 550px;
+  min-height: 625px;
   border: 2px solid #cccccc;
   border-radius: 5px;
   padding-bottom: 2em;
   background-color: light-dark(#efefec, #1e2939)
+}
+
+.row-footer {
+  text-align: center;
+  display: flex;
+  flex: 100%;
+  width: 80%;
+  min-width: 375px;
 }

@@ -217,29 +217,10 @@ pub fn FindOptsSelector(
 ) -> Element {
     rsx! {
         div { class: "row-contents",
-              div { class: "column",
-                    "Max. gap size",
-              }
-              div { class: "column",
-                    input {
-                        r#type: "number",
-                        id: "max_gap_len",
-                        name: "max_gap_len",
-                        min: "0",
-                        max: "5000",
-                        value: "0",
-                        onchange: move |event| {
-                            let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { max_gap_len.set(new_len) };
-                        }
-                    },
-              }
-        }
-        div { class: "row-contents",
-              div { class: "column",
+              div { class: "column-right",
                     "Error tolerance",
               }
-              div { class: "column",
+              div { class: "column-left",
                     input {
                         r#type: "number",
                         id: "min_len",
@@ -255,10 +236,29 @@ pub fn FindOptsSelector(
               }
         }
         div { class: "row-contents",
-              div { class: "column",
-                    "Min. length",
+              div { class: "column-right",
+                    "Max gap len",
               }
-              div { class: "column",
+              div { class: "column-left",
+                    input {
+                        r#type: "number",
+                        id: "max_gap_len",
+                        name: "max_gap_len",
+                        min: "0",
+                        max: "5000",
+                        value: "0",
+                        onchange: move |event| {
+                            let new = event.value().parse::<u64>();
+                            if let Ok(new_len) = new { max_gap_len.set(new_len) };
+                        }
+                    },
+              }
+        }
+        div { class: "row-contents",
+              div { class: "column-right",
+                    "Min length",
+              }
+              div { class: "column-left",
                     input {
                         r#type: "number",
                         id: "min_len",

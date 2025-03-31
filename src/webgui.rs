@@ -112,98 +112,99 @@ pub fn Kbo() -> Element {
         document::Stylesheet { href: CSS }
 
         div { class: "div-box",
-              // kbo title + space for logo
-              div { class: "row-logo",
-                    h1 { "kbo"}
-              }
 
               div { class: "row-header",
-                    RunModeSelector { kbo_mode }
-              }
-
-              // Input selectors
-              div { class: "row",
-                    // Reference file
-                    div { class: "column-left",
-                          h3 {
-                              "Reference file"
-                          }
-                          FastaFileSelector { multiple: false, seq_data: ref_files }
-                    }
-
-                    // Query file(s)
-                    div { class: "column-right",
-                          h3 { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
-                          FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
-                    }
-              }
-
-              // fastX parser errors
-              div { class: "row",
-                    div { class: "column-left",
-                          if ref_error.read().len() > 0 {
-                              { ref_error.read().to_string() }
-                          }
-                    }
-                    div { class: "column-right",
-                          if query_error.read().len() > 0 {
-                              { query_error.read().to_string() }
-                          }
-                    }
+                    h1 { "kbo"},
+                    RunModeSelector { kbo_mode },
               }
 
               div { class: "row",
                     div { class: "column-left",
-                          details {
-                              summary { "Indexing options" }
-                              BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc }
+                          div { class: "row",
+                                strong { "Reference file" },
                           }
-                    }
-                    div { class: "column-right",
-                          details {
-                              summary { "Alignment options" }
-                              match *kbo_mode.read() {
-                                  KboMode::Call => rsx! { CallOptsSelector { max_error_prob } },
-                                  KboMode::Find => rsx! { FindOptsSelector { min_len, max_gap_len, max_error_prob } },
-                                  KboMode::Map => rsx! { MapOptsSelector { max_error_prob, do_vc, do_gapfill } },
-                              }
+                          div { class: "row",
+                                FastaFileSelector { multiple: false, seq_data: ref_files },
                           }
-                    }
-              }
 
-              div { class: "row",
-                    div { class: "column-left",
-                          if *kbo_mode.read() == KboMode::Find {
-                              input {
-                                  r#type: "checkbox",
-                                  name: "detailed",
-                                  id: "detailed",
-                                  checked: false,
-                                  onchange: move |_| {
-                                      let old: bool = *detailed.read();
-                                      *detailed.write() = !old;
-                                  }
-                              },
-                              "Split reference by contig"
-                          } else {
-                              br {}
+                          div { class: "row",
+                                if ref_error.read().len() > 0 {
+                                    { ref_error.read().to_string() }
+                                } else {
+                                    br {}
+                                }
+                          },
+
+                          div { class: "row",
+                                details {
+                                    summary { "Indexing options" },
+                                    BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc },
+                                }
+                          },
+
+                          div { class: "row-contents",
+                                if *kbo_mode.read() == KboMode::Find {
+                                    input {
+                                        r#type: "checkbox",
+                                        name: "detailed",
+                                        id: "detailed",
+                                        checked: false,
+                                        onchange: move |_| {
+                                            let old: bool = *detailed.read();
+                                            *detailed.write() = !old;
+                                        }
+                                    },
+                                    "Split reference by contig",
+                                } else {
+                                    br {},
+                                }
                           }
-                    },
+
+                    }
+
                     div { class: "column-right",
-                          if *kbo_mode.read() == KboMode::Map {
-                              br {}
-                          } else {
-                              input {
-                                  r#type: "checkbox",
-                                  name: "interactive",
-                                  id: "interactive",
-                                  checked: true,
-                                  onchange: move |_| {
-                                      let old: bool = *interactive.read();
-                                      *interactive.write() = !old;
-                                  }
-                              },
-                              "Interactive output",
+                          div { class: "row",
+                                strong { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
+                          }
+                          div { class: "row",
+                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
+                          }
+
+                          div { class: "row",
+                                if query_error.read().len() > 0 {
+                                    { query_error.read().to_string() }
+                                } else {
+                                    br {}
+                                }
+                          },
+
+                          div { class: "row",
+                                details {
+                                    summary { "Alignment options" }
+                                    match *kbo_mode.read() {
+                                        KboMode::Call => rsx! { CallOptsSelector { max_error_prob } },
+                                        KboMode::Find => rsx! { FindOptsSelector { min_len, max_gap_len, max_error_prob } },
+                                        KboMode::Map => rsx! { MapOptsSelector { max_error_prob, do_vc, do_gapfill } },
+                                    }
+                                },
+                          }
+
+                          div { class: "row-contents",
+                                if *kbo_mode.read() == KboMode::Map {
+                                    br {}
+                                } else {
+                                    input {
+                                        r#type: "checkbox",
+                                        name: "interactive",
+                                        id: "interactive",
+                                        checked: true,
+                                        onchange: move |_| {
+                                            let old: bool = *interactive.read();
+                                            *interactive.write() = !old;
+                                        }
+                                    },
+                                    "Interactive output",
+                                }
                           }
                     }
               }

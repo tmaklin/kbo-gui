@@ -249,10 +249,10 @@ pub fn CallOptsSelector(
 ) -> Element {
     rsx! {
         div { class: "row-contents",
-              div { class: "column",
+              div { class: "column-right",
                     "Error tolerance",
               }
-              div { class: "column",
+              div { class: "column-left",
                     input {
                         r#type: "number",
                         id: "min_len",
