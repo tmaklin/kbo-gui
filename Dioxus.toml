@@ -4,8 +4,13 @@ default_platform = "web"
 out_dir = "dist"
 asset_dir = "assets"
 
+[bundle]
+identifier = "kbo"
+publisher = "tmaklin"
+
 [web.app]
 title = "kbo-gui"
+base_path = "kbo"
 
 [web.watcher]
 reload_html = true

@@ -53,10 +53,10 @@ pub fn BuildOptsSelector(
 ) -> Element {
     rsx! {
         div { class: "row-contents",
-              div { class: "column",
+              div { class: "column-right",
                     "k-mer size",
               }
-              div { class: "column",
+              div { class: "column-left",
                     input {
                         r#type: "number",
                         id: "kmer_size",
@@ -72,10 +72,10 @@ pub fn BuildOptsSelector(
               }
         }
         div { class: "row-contents",
-              div { class: "column",
+              div { class: "column-right",
                     "Prefix precalc",
               }
-              div { class: "column",
+              div { class: "column-left",
                   input {
                       r#type: "number",
                       id: "prefix_precalc",
@@ -94,7 +94,7 @@ pub fn BuildOptsSelector(
               div { class: "column",
                     "Deduplicate",
               }
-              div { class: "column",
+              div { class: "column-left",
                   input {
                       r#type: "checkbox",
                       name: "dedup_batches",

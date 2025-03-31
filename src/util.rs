@@ -22,6 +22,12 @@ pub struct ContigData {
     pub seq: Vec<u8>,
 }
 
+#[derive(Debug,Clone)]
+pub struct BuilderErr {
+    code: usize,
+    message: String,
+}
+
 pub fn build_sbwt(
     ref_data: &[Vec<u8>],
     opts: Option<kbo::BuildOpts>,
@@ -30,7 +36,7 @@ pub fn build_sbwt(
     kbo::index::build_sbwt_from_vecs(ref_data, &build_opts)
 }
 
-pub fn read_seq_data(file_contents: &Vec<u8>) -> Result<Vec<ContigData>, ParseError> {
+pub async fn read_seq_data(file_contents: &Vec<u8>) -> Result<Vec<ContigData>, ParseError> {
     let mut seq_data: Vec<ContigData> = Vec::new();
     let mut reader = needletail::parse_fastx_reader(file_contents.deref())?;
     while let Some(rec) = reader.next() {
@@ -47,4 +53,23 @@ pub fn read_seq_data(file_contents: &Vec<u8>) -> Result<Vec<ContigData>, ParseEr
         }
     }
     Ok(seq_data)
+}
+
+pub async fn read_fasta_files(
+    files: &Vec<(String, Vec<u8>)>,
+) -> Result<Vec<(String, Vec<ContigData>)>, ParseError> {
+    let mut contigs: Vec<(String, Vec<crate::util::ContigData>)> = Vec::with_capacity(files.len());
+    for (filename, contents) in files {
+        let data = crate::util::read_seq_data(&contents).await?;
+        contigs.push((filename.to_string(), data));
+    };
+
+    Ok(contigs)
+}
+
+pub async fn sbwt_builder(
+    seq_data: &[Vec<u8>],
+    build_opts: kbo::BuildOpts,
+) -> Result<(sbwt::SbwtIndexVariant, sbwt::LcsArray), BuilderErr> {
+    Ok(crate::util::build_sbwt(seq_data, Some(build_opts)))
 }

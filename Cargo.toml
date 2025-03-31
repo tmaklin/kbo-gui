@@ -1,6 +1,6 @@
 [package]
 name = "kbo-gui"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Tommi Mäklin <tommi@maklin.fi>"]
 edition = "2021"
 rust-version = "1.80.0"
@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 ## core
-kbo = "0.5.0"
+kbo = { git = "https://github.com/tmaklin/kbo", branch = "derive-partialeq-for-opts" }
 sbwt = "0.3.7"
 tokio = { version = "1.40.0", features = ["rt"] }
 
@@ -26,6 +26,8 @@ manganis = "0.2.2"
 
 ## Subdependencies that need features enabled
 getrandom = { version = "0.2", features = ["js"] }
+
+gloo-timers = { version = "0.3.0", features = ["futures"] }
 
 [dependencies.needletail]
 version = "0.6.0"
