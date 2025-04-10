@@ -347,11 +347,11 @@ pub fn Call(
 
     match &*variants.read_unchecked() {
         Ok(data) => {
+            let ref_path = ref_contigs.read()[0].0.clone();
             rsx! {
                 if *interactive.read() {
                     SortableCallResultTable { data: data.1.to_vec() }
                 } else {
-                    let ref_path = ref_contigs.read()[0].0.clone();
                     CopyableCallResultTable { data: data.1.to_vec(), ref_path, contig_info: data.0.to_vec() }
                 }
             }
