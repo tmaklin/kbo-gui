@@ -283,6 +283,13 @@ async fn call_runner(
     call_opts: kbo::CallOpts,
 ) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{
 
+    if reference.is_empty() {
+        return Err(CallRunnerErr{ code: 2, message: "Argument `reference` is empty.".to_string() })
+    }
+    if queries.is_empty() {
+        return Err(CallRunnerErr{ code: 3, message: "Argument `queries` is empty.".to_string() })
+    }
+
     let query_data: Vec<Vec<u8>> = queries[0].1.iter().map(|x| x.seq.clone()).collect();
     let index = crate::util::sbwt_builder(&query_data, call_opts.sbwt_build_opts.clone()).await;
 
@@ -338,13 +345,13 @@ pub fn Call(
         }
     }).suspend()?;
 
-    let ref_path = ref_contigs.read()[0].0.clone();
     match &*variants.read_unchecked() {
         Ok(data) => {
             rsx! {
                 if *interactive.read() {
                     SortableCallResultTable { data: data.1.to_vec() }
                 } else {
+                    let ref_path = ref_contigs.read()[0].0.clone();
                     CopyableCallResultTable { data: data.1.to_vec(), ref_path, contig_info: data.0.to_vec() }
                 }
             }
