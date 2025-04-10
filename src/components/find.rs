@@ -293,9 +293,15 @@ pub struct BuildRunnerErr {
 async fn find_runner(
     indexes: &[((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)],
     queries: &[(String, Vec<crate::util::ContigData>)],
-    reference_file: &str,
+    reference: &[(String, Vec<crate::util::ContigData>)],
     find_opts: kbo::FindOpts,
 ) -> Result<Vec<FindResult>, FindRunnerErr> {
+
+    if reference.is_empty() {
+        return Err(FindRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
+    }
+
+    let reference_file = reference[0].0.clone();
 
     let res = indexes.iter().flat_map(|((sbwt, lcs), ref_contig, ref_bases)| {
         queries.iter().flat_map(|(query_file, contigs)| {
@@ -334,6 +340,10 @@ async fn build_runner(
     build_opts: kbo::BuildOpts,
     separately: bool,
 ) -> Result<Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)>, BuildRunnerErr> {
+
+    if reference.is_empty() {
+        return Err(BuildRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
+    }
 
     let res = if !separately {
         let seq_data: Vec<u8> = reference.iter().flat_map(|(_, contigs)| {
@@ -382,12 +392,11 @@ pub fn Find(
 ) -> Element {
 
     let res = use_resource(move || {
-        let ref_file_name = ref_contigs.read()[0].0.clone();
         let opts = build_opts.clone();
         async move {
             gloo_timers::future::TimeoutFuture::new(100).await;
             let indexes = build_runner(&ref_contigs.read(), opts, *detailed.read()).await;
-            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_file_name, find_opts).await
+            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_contigs.read(), find_opts).await
         }
     }).suspend()?;
 
