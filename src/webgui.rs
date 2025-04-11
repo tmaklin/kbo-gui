@@ -123,7 +123,7 @@ pub fn Kbo() -> Element {
                           div { class: "row",
                                 strong { "Reference file" },
                           }
-                          div { class: "row",
+                          div { class: "row-overflow-x",
                                 FastaFileSelector { multiple: false, seq_data: ref_files },
                           }
 
@@ -135,7 +135,7 @@ pub fn Kbo() -> Element {
                                 }
                           },
 
-                          div { class: "row",
+                          div { class: "row-overflow-x",
                                 details {
                                     summary { "Indexing options" },
                                     BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc },

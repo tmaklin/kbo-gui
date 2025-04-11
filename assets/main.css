@@ -105,6 +105,16 @@ body {
   margin-bottom: 0.5em;
 }
 
+.row-overflow-x {
+  display: flex;
+  text-align: left;
+  flex: 100%;
+  width: 100%;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  overflow-x: auto;
+}
+
 .row-header {
   flex: 100%;
   width: 100%;
