@@ -90,6 +90,10 @@ async fn map_runner(
     map_opts: kbo::MapOpts,
 ) -> Result<Vec<(String, Vec<u8>)>, MapRunnerErr> {
 
+    if reference.is_empty() {
+        return Err(MapRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
+    }
+
     let aln = queries.iter().map(|(query_file, query_contig)| {
 
         let (sbwt, lcs) = crate::util::build_sbwt(
