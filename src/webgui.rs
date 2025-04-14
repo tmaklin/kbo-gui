@@ -122,24 +122,26 @@ pub fn Kbo() -> Element {
                                 strong { "Reference file" },
                           }
                           div { class: "row",
-                                FastaFileSelector { multiple: false, seq_data: ref_files },
+                                FastaFileSelector { multiple: false, seq_data: ref_files, out_text: ref_error },
                           }
 
                           div { class: "row",
                                 {
                                     let ref_contigs = use_resource(move || async move {
+                                        ref_error.set(String::new());
                                         crate::util::read_fasta_files(&ref_files.read()).await
                                     });
                                     use_effect(move || {
                                         if ref_files.read().len() > 0 && ref_contigs.state() == UseResourceState::Ready {
-                                            if let Ok(ref_data) = (*ref_contigs.read()).as_ref().unwrap() {
-                                                reference.set((*ref_data.clone())[0].clone());
+                                            match (*ref_contigs.read()).as_ref().unwrap() {
+                                                Ok(ref_data) => reference.set((*ref_data.clone())[0].clone()),
+                                                Err(e) => ref_error.set("Error: ".to_string() + &e.msg.to_string()),
                                             }
                                         }
                                     });
                                 }
 
-                                if ref_error.read().len() > 0 {
+                                if !ref_error.read().is_empty() {
                                     { ref_error.read().to_string() }
                                 } else {
                                     br {}
@@ -178,23 +180,25 @@ pub fn Kbo() -> Element {
                                 strong { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
                           }
                           div { class: "row",
-                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
+                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files, out_text: query_error }
                           }
 
                           div { class: "row",
                                 {
                                     let query_contigs = use_resource(move || async move {
+                                        query_error.set(String::new());
                                         crate::util::read_fasta_files(&query_files.read()).await
                                     });
                                     use_effect(move || {
                                         if query_files.read().len() > 0 && query_contigs.state() == UseResourceState::Ready {
-                                            if let Ok(query_data) = (*query_contigs.read()).as_ref().unwrap() {
-                                                queries.set((*query_data.clone()).to_vec());
+                                            match (*query_contigs.read()).as_ref().unwrap() {
+                                                Ok(query_data) => queries.set((*query_data.clone()).to_vec()),
+                                                Err(e) => query_error.set("Error: ".to_string() + &e.msg.to_string()),
                                             }
                                         }
                                     });
                                 }
-                                if query_error.read().len() > 0 {
+                                if !query_error.read().is_empty() {
                                     { query_error.read().to_string() }
                                 } else {
                                     br {}
