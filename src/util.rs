@@ -22,6 +22,12 @@ pub struct ContigData {
     pub seq: Vec<u8>,
 }
 
+#[derive(Clone, Default, PartialEq)]
+pub struct SeqData {
+    pub contigs: Vec<ContigData>,
+    pub file_name: String,
+}
+
 #[derive(Debug,Clone)]
 pub struct BuilderErr {
     code: usize,
@@ -57,11 +63,11 @@ pub async fn read_seq_data(file_contents: &Vec<u8>) -> Result<Vec<ContigData>, P
 
 pub async fn read_fasta_files(
     files: &Vec<(String, Vec<u8>)>,
-) -> Result<Vec<(String, Vec<ContigData>)>, ParseError> {
-    let mut contigs: Vec<(String, Vec<crate::util::ContigData>)> = Vec::with_capacity(files.len());
+) -> Result<Vec<SeqData>, ParseError> {
+    let mut contigs: Vec<SeqData> = Vec::with_capacity(files.len());
     for (filename, contents) in files {
         let data = crate::util::read_seq_data(&contents).await?;
-        contigs.push((filename.to_string(), data));
+        contigs.push(SeqData { contigs: data, file_name: filename.clone() });
     };
 
     Ok(contigs)

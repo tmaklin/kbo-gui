@@ -18,6 +18,7 @@ use crate::components::common::BuildOptsSelector;
 use crate::components::call::*;
 use crate::components::find::*;
 use crate::components::map::*;
+use crate::util::SeqData;
 
 static CSS: Asset = asset!("/assets/main.css");
 
@@ -78,8 +79,8 @@ pub fn Kbo() -> Element {
     let mut n_refs: Signal<usize> = use_signal(|| 0);
     let mut n_queries: Signal<usize> = use_signal(|| 0);
 
-    let mut references: Signal<Vec<(String, Vec<crate::util::ContigData>)>> = use_signal(Vec::new);
-    let mut queries: Signal<Vec<(String, Vec<crate::util::ContigData>)>> = use_signal(Vec::new);
+    let mut reference: Signal<SeqData> = use_signal(SeqData::default);
+    let mut queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
 
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
@@ -228,7 +229,7 @@ pub fn Kbo() -> Element {
                   if *n_refs.read() > 0 && *n_queries.read() > 0 {
                       use_effect(move || {
                           if let Ok(ref_data) = (*ref_contigs.read()).as_ref().unwrap() {
-                              references.set((*ref_data.clone()).to_vec());
+                              reference.set((*ref_data.clone())[0].clone());
                           }
                       });
                       use_effect(move || {
@@ -249,7 +250,7 @@ pub fn Kbo() -> Element {
                                             call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
                                             call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
                                             call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-                                            rsx!{ Call { ref_contigs: references, query_contigs: queries, interactive, call_opts } }
+                                            rsx!{ Call { ref_contigs: reference, query_contigs: queries, interactive, call_opts } }
                                         },
                                         KboMode::Find => {
                                             // Mode `Find`
@@ -263,7 +264,7 @@ pub fn Kbo() -> Element {
                                             build_opts.dedup_batches = *dedup_batches.read();
                                             build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
-                                            rsx! { Find { ref_contigs: references, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
+                                            rsx! { Find { ref_contigs: reference, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
                                         },
                                         KboMode::Map => {
                                             // Options for indexing reference
@@ -279,7 +280,7 @@ pub fn Kbo() -> Element {
                                             map_opts.fill_gaps = *do_vc.read();
                                             map_opts.sbwt_build_opts = build_opts;
 
-                                            rsx! { Map { ref_contigs: references, query_contigs: queries, map_opts } }
+                                            rsx! { Map { ref_contigs: reference, query_contigs: queries, map_opts } }
                                         },
                                     }
                                 }
