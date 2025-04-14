@@ -18,6 +18,7 @@ use crate::components::common::BuildOptsSelector;
 use crate::components::call::*;
 use crate::components::find::*;
 use crate::components::map::*;
+use crate::util::SeqData;
 
 static CSS: Asset = asset!("/assets/main.css");
 
@@ -75,11 +76,8 @@ pub fn Kbo() -> Element {
     let ref_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(|| { Vec::with_capacity(1) });
     let query_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(Vec::new);
 
-    let mut n_refs: Signal<usize> = use_signal(|| 0);
-    let mut n_queries: Signal<usize> = use_signal(|| 0);
-
-    let mut references: Signal<Vec<(String, Vec<crate::util::ContigData>)>> = use_signal(Vec::new);
-    let mut queries: Signal<Vec<(String, Vec<crate::util::ContigData>)>> = use_signal(Vec::new);
+    let mut reference: Signal<SeqData> = use_signal(SeqData::default);
+    let mut queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
 
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
@@ -124,11 +122,26 @@ pub fn Kbo() -> Element {
                                 strong { "Reference file" },
                           }
                           div { class: "row",
-                                FastaFileSelector { multiple: false, seq_data: ref_files },
+                                FastaFileSelector { multiple: false, seq_data: ref_files, out_text: ref_error },
                           }
 
                           div { class: "row",
-                                if ref_error.read().len() > 0 {
+                                {
+                                    let ref_contigs = use_resource(move || async move {
+                                        ref_error.set(String::new());
+                                        crate::util::read_fasta_files(&ref_files.read()).await
+                                    });
+                                    use_effect(move || {
+                                        if ref_files.read().len() > 0 && ref_contigs.state() == UseResourceState::Ready {
+                                            match (*ref_contigs.read()).as_ref().unwrap() {
+                                                Ok(ref_data) => reference.set((*ref_data.clone())[0].clone()),
+                                                Err(e) => ref_error.set("Error: ".to_string() + &e.msg.to_string()),
+                                            }
+                                        }
+                                    });
+                                }
+
+                                if !ref_error.read().is_empty() {
                                     { ref_error.read().to_string() }
                                 } else {
                                     br {}
@@ -167,11 +180,25 @@ pub fn Kbo() -> Element {
                                 strong { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
                           }
                           div { class: "row",
-                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files }
+                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files, out_text: query_error }
                           }
 
                           div { class: "row",
-                                if query_error.read().len() > 0 {
+                                {
+                                    let query_contigs = use_resource(move || async move {
+                                        query_error.set(String::new());
+                                        crate::util::read_fasta_files(&query_files.read()).await
+                                    });
+                                    use_effect(move || {
+                                        if query_files.read().len() > 0 && query_contigs.state() == UseResourceState::Ready {
+                                            match (*query_contigs.read()).as_ref().unwrap() {
+                                                Ok(query_data) => queries.set((*query_data.clone()).to_vec()),
+                                                Err(e) => query_error.set("Error: ".to_string() + &e.msg.to_string()),
+                                            }
+                                        }
+                                    });
+                                }
+                                if !query_error.read().is_empty() {
                                     { query_error.read().to_string() }
                                 } else {
                                     br {}
@@ -213,29 +240,7 @@ pub fn Kbo() -> Element {
               // based on which KboMode is selected.
               {
 
-                  let query_contigs = use_resource(move || async move {
-                      let res = crate::util::read_fasta_files(&query_files.read()).await;
-                      n_queries.set(query_files.read().len());
-                      res
-                  });
-
-                  let ref_contigs = use_resource(move || async move {
-                      let res = crate::util::read_fasta_files(&ref_files.read()).await;
-                      n_refs.set(ref_files.read().len());
-                      res
-                  });
-
-                  if *n_refs.read() > 0 && *n_queries.read() > 0 {
-                      use_effect(move || {
-                          if let Ok(ref_data) = (*ref_contigs.read()).as_ref().unwrap() {
-                              references.set((*ref_data.clone()).to_vec());
-                          }
-                      });
-                      use_effect(move || {
-                          if let Ok(query_data) = (*query_contigs.read()).as_ref().unwrap() {
-                              queries.set((*query_data.clone()).to_vec());
-                          }
-                      });
+                  if !(reference.read().contigs.is_empty()) && !(queries.read().is_empty()) {
                       rsx! {
                           div { class: "row-results",
                                 SuspenseBoundary {
@@ -249,7 +254,7 @@ pub fn Kbo() -> Element {
                                             call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
                                             call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
                                             call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-                                            rsx!{ Call { ref_contigs: references, query_contigs: queries, interactive, call_opts } }
+                                            rsx!{ Call { ref_contigs: reference, query_contigs: queries, interactive, call_opts } }
                                         },
                                         KboMode::Find => {
                                             // Mode `Find`
@@ -263,7 +268,7 @@ pub fn Kbo() -> Element {
                                             build_opts.dedup_batches = *dedup_batches.read();
                                             build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
-                                            rsx! { Find { ref_contigs: references, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
+                                            rsx! { Find { ref_contigs: reference, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
                                         },
                                         KboMode::Map => {
                                             // Options for indexing reference
@@ -279,7 +284,7 @@ pub fn Kbo() -> Element {
                                             map_opts.fill_gaps = *do_vc.read();
                                             map_opts.sbwt_build_opts = build_opts;
 
-                                            rsx! { Map { ref_contigs: references, query_contigs: queries, map_opts } }
+                                            rsx! { Map { ref_contigs: reference, query_contigs: queries, map_opts } }
                                         },
                                     }
                                 }

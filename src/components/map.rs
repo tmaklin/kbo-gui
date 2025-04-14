@@ -13,6 +13,8 @@
 //
 use dioxus::prelude::*;
 
+use crate::util::SeqData;
+
 #[component]
 pub fn MapOptsSelector(
     max_error_prob: Signal<f64>,
@@ -85,26 +87,30 @@ pub struct MapRunnerErr {
 }
 
 async fn map_runner(
-    reference: &[(String, Vec<crate::util::ContigData>)],
-    queries: &[(String, Vec<crate::util::ContigData>)],
+    reference: &SeqData,
+    queries: &[SeqData],
     map_opts: kbo::MapOpts,
 ) -> Result<Vec<(String, Vec<u8>)>, MapRunnerErr> {
 
-    if reference.is_empty() {
+    if reference.contigs.is_empty() || reference.file_name.is_empty() {
         return Err(MapRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
     }
 
-    let aln = queries.iter().map(|(query_file, query_contig)| {
+    if queries.is_empty() {
+        return Err(MapRunnerErr{ code: 1, message: "Argument `queries` is empty.".to_string() })
+    }
+
+    let aln = queries.iter().map(|query| {
 
         let (sbwt, lcs) = crate::util::build_sbwt(
-            &query_contig.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
+            &query.contigs.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
             Some(map_opts.sbwt_build_opts.clone()),
         );
 
-        let res: Vec<u8> = reference[0].1.iter().flat_map(|ref_contig| {
+        let res: Vec<u8> = reference.contigs.iter().flat_map(|ref_contig| {
                                     kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
                                 }).collect();
-        (query_file.clone(), res)
+        (query.file_name.clone(), res)
     }).collect::<Vec<(String, Vec<u8>)>>();
 
     if !aln.is_empty() {
@@ -116,8 +122,8 @@ async fn map_runner(
 
 #[component]
 pub fn Map(
-    ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
-    query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    ref_contigs: ReadOnlySignal<SeqData>,
+    query_contigs: ReadOnlySignal<Vec<SeqData>>,
     map_opts: kbo::MapOpts,
 ) -> Element {
 

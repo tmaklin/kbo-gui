@@ -12,6 +12,7 @@
 // at your option.
 //
 use crate::dioxus_sortable::*;
+use crate::util::SeqData;
 
 use chrono::offset::Local;
 use dioxus::prelude::*;
@@ -278,28 +279,28 @@ pub struct CallRunnerErr {
 }
 
 async fn call_runner(
-    reference: &[(String, Vec<crate::util::ContigData>)],
-    queries: &[(String, Vec<crate::util::ContigData>)],
+    reference: &SeqData,
+    queries: &[SeqData],
     call_opts: kbo::CallOpts,
 ) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{
 
-    if reference.is_empty() {
+    if reference.contigs.is_empty() || reference.file_name.is_empty() {
         return Err(CallRunnerErr{ code: 2, message: "Argument `reference` is empty.".to_string() })
     }
     if queries.is_empty() {
         return Err(CallRunnerErr{ code: 3, message: "Argument `queries` is empty.".to_string() })
     }
 
-    let query_data: Vec<Vec<u8>> = queries[0].1.iter().map(|x| x.seq.clone()).collect();
+    let query_data: Vec<Vec<u8>> = queries[0].contigs.iter().map(|x| x.seq.clone()).collect();
     let index = crate::util::sbwt_builder(&query_data, call_opts.sbwt_build_opts.clone()).await;
 
     match index {
         Ok((sbwt_query, sbwt_lcs)) => {
 
-            let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(reference[0].1.len());
+            let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(reference.contigs.len());
             let mut res: Vec<CallResult> = Vec::new();
 
-            reference[0].1.iter().for_each(|contig| {
+            reference.contigs.iter().for_each(|contig| {
                 let mut header_contents = contig.name.split_whitespace();
                 let contig_name = header_contents.next().expect("Contig name");
                 contig_info.push((contig.name.clone(), contig.seq.len()));
@@ -330,8 +331,8 @@ async fn call_runner(
 
 #[component]
 pub fn Call(
-    ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
-    query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    ref_contigs: ReadOnlySignal<SeqData>,
+    query_contigs: ReadOnlySignal<Vec<SeqData>>,
     interactive: ReadOnlySignal<bool>,
     call_opts: kbo::CallOpts,
 ) -> Element {
@@ -347,7 +348,7 @@ pub fn Call(
 
     match &*variants.read_unchecked() {
         Ok(data) => {
-            let ref_path = ref_contigs.read()[0].0.clone();
+            let ref_path = ref_contigs.read().file_name.clone();
             rsx! {
                 if *interactive.read() {
                     SortableCallResultTable { data: data.1.to_vec() }

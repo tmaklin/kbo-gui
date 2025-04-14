@@ -17,6 +17,7 @@ use crate::dioxus_sortable::*;
 use needletail::Sequence;
 
 use crate::components::common::BuildOptsSelector;
+use crate::util::SeqData;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 enum FindResultField {
@@ -292,33 +293,31 @@ pub struct BuildRunnerErr {
 
 async fn find_runner(
     indexes: &[((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)],
-    queries: &[(String, Vec<crate::util::ContigData>)],
-    reference: &[(String, Vec<crate::util::ContigData>)],
+    queries: &[SeqData],
+    reference: &SeqData,
     find_opts: kbo::FindOpts,
 ) -> Result<Vec<FindResult>, FindRunnerErr> {
 
-    if reference.is_empty() {
+    if reference.contigs.is_empty() || reference.file_name.is_empty() {
         return Err(FindRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
     }
 
-    let reference_file = reference[0].0.clone();
-
     let res = indexes.iter().flat_map(|((sbwt, lcs), ref_contig, ref_bases)| {
-        queries.iter().flat_map(|(query_file, contigs)| {
+        queries.iter().flat_map(|query| {
             let mut run_lengths: Vec<FindResult> = Vec::new();
 
             // Get local alignments for forward strand
-            contigs.iter().for_each(|contig| {
+            query.contigs.iter().for_each(|contig| {
                 let query_bases = contig.seq.len();
                 let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                    format_find_result(x, query_file.clone(), reference_file.to_string(), contig.name.clone(), ref_contig.to_string(), query_bases, *ref_bases, '+')
+                    format_find_result(x, query.file_name.clone(), reference.file_name.clone(), contig.name.clone(), ref_contig.to_string(), query_bases, *ref_bases, '+')
                 }));
 
                 // Add local alignments for reverse complement
                 let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                    format_find_result(x, query_file.clone(), reference_file.to_string(), contig.name.clone(), ref_contig.clone(), query_bases, *ref_bases, '-')
+                    format_find_result(x, query.file_name.clone(), reference.file_name.clone(), contig.name.clone(), ref_contig.clone(), query_bases, *ref_bases, '-')
                 }));
 
             });
@@ -336,30 +335,26 @@ async fn find_runner(
 }
 
 async fn build_runner(
-    reference: &[(String, Vec<crate::util::ContigData>)],
+    reference: &SeqData,
     build_opts: kbo::BuildOpts,
     separately: bool,
 ) -> Result<Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)>, BuildRunnerErr> {
 
-    if reference.is_empty() {
+    if reference.contigs.is_empty() || reference.file_name.is_empty() {
         return Err(BuildRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
     }
 
     let res = if !separately {
-        let seq_data: Vec<u8> = reference.iter().flat_map(|(_, contigs)| {
-            contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>()
-        }).collect();
+        let seq_data: Vec<u8> = reference.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>();
         let bases: usize = seq_data.len();
         let data = &[seq_data];
         let index = crate::util::sbwt_builder(
             data,
             build_opts.clone(),
         );
-        vec![(index.await.unwrap(), reference[0].0.clone(), bases)]
+        vec![(index.await.unwrap(), reference.file_name.clone(), bases)]
     } else {
-        let seq_data: Vec<(String, Vec<u8>)> = reference.iter().flat_map(|(_, contigs)| {
-            contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>()
-        }).collect();
+        let seq_data: Vec<(String, Vec<u8>)> = reference.contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>();
 
         let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)> = Vec::new();
         for (contig_name, contig_seq) in seq_data {
@@ -382,8 +377,8 @@ async fn build_runner(
 
 #[component]
 pub fn Find(
-    ref_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
-    query_contigs: ReadOnlySignal<Vec<(String, Vec<crate::util::ContigData>)>>,
+    ref_contigs: ReadOnlySignal<SeqData>,
+    query_contigs: ReadOnlySignal<Vec<SeqData>>,
     interactive: ReadOnlySignal<bool>,
     min_len: ReadOnlySignal<u64>,
     detailed: ReadOnlySignal<bool>,
