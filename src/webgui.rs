@@ -129,6 +129,21 @@ pub fn Kbo() -> Element {
                           }
 
                           div { class: "row",
+                                {
+                                    let ref_contigs = use_resource(move || async move {
+                                        let res = crate::util::read_fasta_files(&ref_files.read()).await;
+                                        n_refs.set(ref_files.read().len());
+                                        res
+                                    });
+                                    use_effect(move || {
+                                        if *n_refs.read() > 0 {
+                                            if let Ok(ref_data) = (*ref_contigs.read()).as_ref().unwrap() {
+                                                reference.set((*ref_data.clone())[0].clone());
+                                            }
+                                        }
+                                    });
+                                }
+
                                 if ref_error.read().len() > 0 {
                                     { ref_error.read().to_string() }
                                 } else {
@@ -172,6 +187,20 @@ pub fn Kbo() -> Element {
                           }
 
                           div { class: "row",
+                                {
+                                    let query_contigs = use_resource(move || async move {
+                                        let res = crate::util::read_fasta_files(&query_files.read()).await;
+                                        n_queries.set(query_files.read().len());
+                                        res
+                                    });
+                                    use_effect(move || {
+                                        if *n_queries.read() > 0 {
+                                            if let Ok(query_data) = (*query_contigs.read()).as_ref().unwrap() {
+                                                queries.set((*query_data.clone()).to_vec());
+                                            }
+                                        }
+                                    });
+                                }
                                 if query_error.read().len() > 0 {
                                     { query_error.read().to_string() }
                                 } else {
@@ -214,29 +243,7 @@ pub fn Kbo() -> Element {
               // based on which KboMode is selected.
               {
 
-                  let query_contigs = use_resource(move || async move {
-                      let res = crate::util::read_fasta_files(&query_files.read()).await;
-                      n_queries.set(query_files.read().len());
-                      res
-                  });
-
-                  let ref_contigs = use_resource(move || async move {
-                      let res = crate::util::read_fasta_files(&ref_files.read()).await;
-                      n_refs.set(ref_files.read().len());
-                      res
-                  });
-
                   if *n_refs.read() > 0 && *n_queries.read() > 0 {
-                      use_effect(move || {
-                          if let Ok(ref_data) = (*ref_contigs.read()).as_ref().unwrap() {
-                              reference.set((*ref_data.clone())[0].clone());
-                          }
-                      });
-                      use_effect(move || {
-                          if let Ok(query_data) = (*query_contigs.read()).as_ref().unwrap() {
-                              queries.set((*query_data.clone()).to_vec());
-                          }
-                      });
                       rsx! {
                           div { class: "row-results",
                                 SuspenseBoundary {
