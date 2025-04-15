@@ -131,8 +131,8 @@ pub fn Kbo() -> Element {
                                         id: "detailed",
                                         checked: false,
                                         onchange: move |_| {
-                                            let old: bool = (*gui_opts.read()).out_opts.detailed;
-                                            (*gui_opts.write()).out_opts.detailed = !old;
+                                            let old: bool = gui_opts.read().out_opts.detailed;
+                                            gui_opts.write().out_opts.detailed = !old;
                                         }
                                     },
                                     "Split reference by contig",
@@ -180,8 +180,8 @@ pub fn Kbo() -> Element {
                                         id: "interactive",
                                         checked: true,
                                         onchange: move |_| {
-                                            let old: bool = (*gui_opts.read()).out_opts.interactive;
-                                            (*gui_opts.write()).out_opts.interactive = !old;
+                                            let old: bool = gui_opts.read().out_opts.interactive;
+                                            gui_opts.write().out_opts.interactive = !old;
                                         }
                                     },
                                     "Interactive output",
