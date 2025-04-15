@@ -264,7 +264,7 @@ pub fn CallOptsSelector(
                         value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { (*opts.write()).aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
+                            if let Ok(new_prob) = new { opts.write().aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -279,7 +279,7 @@ pub struct CallRunnerErr {
 }
 
 async fn call_runner(
-    reference: &Vec<SeqData>,
+    reference: &[SeqData],
     index: &IndexData,
     call_opts: kbo::CallOpts,
 ) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{

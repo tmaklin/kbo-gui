@@ -18,6 +18,7 @@ use needletail::errors::ParseError;
 
 use crate::common::*;
 
+#[allow(dead_code)]
 #[derive(Debug,Clone)]
 pub struct BuilderErr {
     code: usize,
@@ -77,7 +78,7 @@ pub async fn read_fasta_files(
 ) -> Result<Vec<SeqData>, ParseError> {
     let mut contigs: Vec<SeqData> = Vec::with_capacity(files.len());
     for (filename, contents) in files {
-        let data = crate::util::read_seq_data(&contents).await?;
+        let data = crate::util::read_seq_data(contents).await?;
         contigs.push(SeqData { contigs: data, file_name: filename.clone() });
     };
 

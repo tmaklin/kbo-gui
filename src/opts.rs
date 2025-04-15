@@ -20,21 +20,21 @@ pub struct GuiOpts {
 }
 
 impl GuiOpts {
-    pub fn to_kbo_call(&self) -> kbo::CallOpts {
+    pub fn to_kbo_call(self) -> kbo::CallOpts {
         let mut call_opts = kbo::CallOpts::default();
         call_opts.max_error_prob = self.aln_opts.max_error_prob;
         call_opts.sbwt_build_opts = self.build_opts.to_kbo();
         call_opts
     }
 
-    pub fn to_kbo_find(&self) -> kbo::FindOpts {
+    pub fn to_kbo_find(self) -> kbo::FindOpts {
         let mut find_opts = kbo::FindOpts::default();
         find_opts.max_error_prob = self.aln_opts.max_error_prob;
         find_opts.max_gap_len = self.aln_opts.max_gap_len as usize;
         find_opts
     }
 
-    pub fn to_kbo_map(&self) -> kbo::MapOpts {
+    pub fn to_kbo_map(self) -> kbo::MapOpts {
         let mut map_opts = kbo::MapOpts::default();
         map_opts.max_error_prob = self.aln_opts.max_error_prob;
         map_opts.call_variants = self.aln_opts.do_vc;
@@ -77,7 +77,7 @@ impl Default for BuildOpts {
 }
 
 impl BuildOpts {
-    pub fn to_kbo(&self) -> kbo::BuildOpts {
+    pub fn to_kbo(self) -> kbo::BuildOpts {
         let mut kbo_opts = kbo::BuildOpts::default();
         kbo_opts.build_select = true;
         kbo_opts.k = self.kmer_size as usize;

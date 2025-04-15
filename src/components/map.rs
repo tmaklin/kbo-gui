@@ -35,7 +35,7 @@ pub fn MapOptsSelector(
                         value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { (*opts.write()).aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
+                            if let Ok(new_prob) = new { opts.write().aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -52,7 +52,7 @@ pub fn MapOptsSelector(
                         checked: opts.read().aln_opts.do_vc,
                         onchange: move |_| {
                             let old: bool = opts.read().aln_opts.do_vc;
-                            (*opts.write()).aln_opts.do_vc = !old;
+                            opts.write().aln_opts.do_vc = !old;
                         }
                     },
               }
@@ -69,7 +69,7 @@ pub fn MapOptsSelector(
                         checked: opts.read().aln_opts.do_gapfill,
                         onchange: move |_| {
                             let old: bool = opts.read().aln_opts.do_gapfill;
-                            (*opts.write()).aln_opts.do_gapfill = !old;
+                            opts.write().aln_opts.do_gapfill = !old;
                         }
                     },
               }

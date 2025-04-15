@@ -176,6 +176,7 @@ fn CopyableFindResultTable(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn format_find_result(
     result: &kbo::format::RLE,
     query_file: String,
@@ -229,7 +230,7 @@ pub fn FindOptsSelector(
                         value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { (*opts.write()).aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
+                            if let Ok(new_prob) = new { opts.write().aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -248,7 +249,7 @@ pub fn FindOptsSelector(
                         value: opts.read().aln_opts.max_gap_len.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { (*opts.write()).aln_opts.max_gap_len = new_len };
+                            if let Ok(new_len) = new { opts.write().aln_opts.max_gap_len = new_len };
                         }
                     },
               }
@@ -267,7 +268,7 @@ pub fn FindOptsSelector(
                         value: opts.read().aln_opts.min_len.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { (*opts.write()).aln_opts.min_len = new_len };
+                            if let Ok(new_len) = new { opts.write().aln_opts.min_len = new_len };
                         }
                     }
               }
@@ -291,7 +292,7 @@ pub struct BuildRunnerErr {
 async fn find_runner(
     indexes: &[IndexData],
     queries: &[SeqData],
-    ref_file: &String,
+    ref_file: &str,
     find_opts: kbo::FindOpts,
 ) -> Result<Vec<FindResult>, FindRunnerErr> {
 
@@ -314,13 +315,13 @@ async fn find_runner(
                 let query_bases = contig.seq.len();
                 let run_lengths_fwd = kbo::find(&contig.seq, &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), ref_file.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '+')
+                    format_find_result(x, query.file_name.clone(), ref_file.to_string(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '+')
                 }));
 
                 // Add local alignments for reverse complement
                 let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), ref_file.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '-')
+                    format_find_result(x, query.file_name.clone(), ref_file.to_string(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '-')
                 }));
 
             });
@@ -338,7 +339,7 @@ async fn find_runner(
 }
 
 pub async fn build_runner(
-    reference: &Vec<SeqData>,
+    reference: &[SeqData],
     build_opts: kbo::BuildOpts,
     separately: bool,
 ) -> Result<Vec<IndexData>, BuildRunnerErr> {
