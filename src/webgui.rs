@@ -75,16 +75,63 @@ fn RunModeSelector(
 }
 
 #[component]
-pub fn Kbo() -> Element {
+fn InteractivitySwitcher(
+    kbo_mode: Signal<KboMode>,
+    opts: Signal<GuiOpts>,
+) -> Element {
+    rsx! {
+        if *kbo_mode.read() == KboMode::Find {
+            input {
+                r#type: "checkbox",
+                name: "detailed",
+                id: "detailed",
+                checked: false,
+                onchange: move |_| {
+                    let old: bool = opts.read().out_opts.detailed;
+                    opts.write().out_opts.detailed = !old;
+                }
+            },
+            "Split reference by contig",
+        } else {
+            br {},
+        }
+    }
+}
 
+#[component]
+fn DetailSwitcher(
+    kbo_mode: Signal<KboMode>,
+    opts: Signal<GuiOpts>,
+) -> Element {
+    rsx! {
+        if *kbo_mode.read() == KboMode::Map {
+            br {}
+        } else {
+            input {
+                r#type: "checkbox",
+                name: "interactive",
+                id: "interactive",
+                checked: true,
+                onchange: move |_| {
+                    let old: bool = opts.read().out_opts.interactive;
+                    opts.write().out_opts.interactive = !old;
+                }
+            },
+            "Interactive output",
+        }
+    }
+}
+
+#[component]
+pub fn Kbo() -> Element {
+    // Input data
     let mut reference: Signal<SeqData> = use_signal(SeqData::default);
     let tmp_data: Signal<Vec<SeqData>> = use_signal(Vec::new);
     let queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
 
-    let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
-
     // Options
-    let mut gui_opts: Signal<GuiOpts> = use_signal(GuiOpts::default);
+    let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
+    let gui_opts: Signal<GuiOpts> = use_signal(GuiOpts::default);
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -111,23 +158,8 @@ pub fn Kbo() -> Element {
                           },
 
                           div { class: "row-contents",
-                                if *kbo_mode.read() == KboMode::Find {
-                                    input {
-                                        r#type: "checkbox",
-                                        name: "detailed",
-                                        id: "detailed",
-                                        checked: false,
-                                        onchange: move |_| {
-                                            let old: bool = gui_opts.read().out_opts.detailed;
-                                            gui_opts.write().out_opts.detailed = !old;
-                                        }
-                                    },
-                                    "Split reference by contig",
-                                } else {
-                                    br {},
-                                }
-                          }
-
+                                InteractivitySwitcher { kbo_mode, opts: gui_opts },
+                          },
                     }
 
                     div { class: "column-right",
@@ -148,22 +180,8 @@ pub fn Kbo() -> Element {
                           }
 
                           div { class: "row-contents",
-                                if *kbo_mode.read() == KboMode::Map {
-                                    br {}
-                                } else {
-                                    input {
-                                        r#type: "checkbox",
-                                        name: "interactive",
-                                        id: "interactive",
-                                        checked: true,
-                                        onchange: move |_| {
-                                            let old: bool = gui_opts.read().out_opts.interactive;
-                                            gui_opts.write().out_opts.interactive = !old;
-                                        }
-                                    },
-                                    "Interactive output",
-                                }
-                          }
+                                DetailSwitcher { kbo_mode, opts: gui_opts },
+                          },
                     }
               }
 
