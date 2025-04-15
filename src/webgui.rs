@@ -18,6 +18,9 @@ use crate::components::common::BuildOptsSelector;
 use crate::components::call::*;
 use crate::components::find::*;
 use crate::components::map::*;
+
+use crate::opts::GuiOpts;
+
 use crate::util::SeqData;
 
 static CSS: Asset = asset!("/assets/main.css");
@@ -83,21 +86,8 @@ pub fn Kbo() -> Element {
     let ref_error: Signal<String> = use_signal(String::new);
     let query_error: Signal<String> = use_signal(String::new);
 
-    // Options for indexing reference
-    let kmer_size: Signal<u32> = use_signal(|| 51);
-    let dedup_batches: Signal<bool> = use_signal(|| true);
-    let prefix_precalc: Signal<u32> = use_signal(|| 8);
-
-    // Alignment options
-    let max_error_prob: Signal<f64> = use_signal(|| 0.0000001_f64);
-    let min_len: Signal<u64> = use_signal(|| 100_u64);
-    let max_gap_len: Signal<u64> = use_signal(|| 0_u64);
-    let do_vc: Signal<bool> = use_signal(|| true);
-    let do_gapfill: Signal<bool> = use_signal(|| true);
-
-    // Output options
-    let mut interactive: Signal<bool> = use_signal(|| true);
-    let mut detailed: Signal<bool> = use_signal(|| false);
+    // Options
+    let mut gui_opts: Signal<GuiOpts> = use_signal(GuiOpts::default);
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -129,7 +119,7 @@ pub fn Kbo() -> Element {
                           div { class: "row",
                                 details {
                                     summary { "Indexing options" },
-                                    BuildOptsSelector { kmer_size, dedup_batches, prefix_precalc },
+                                    BuildOptsSelector { opts: gui_opts },
                                 }
                           },
 
@@ -141,8 +131,8 @@ pub fn Kbo() -> Element {
                                         id: "detailed",
                                         checked: false,
                                         onchange: move |_| {
-                                            let old: bool = *detailed.read();
-                                            *detailed.write() = !old;
+                                            let old: bool = (*gui_opts.read()).out_opts.detailed;
+                                            (*gui_opts.write()).out_opts.detailed = !old;
                                         }
                                     },
                                     "Split reference by contig",
@@ -173,9 +163,9 @@ pub fn Kbo() -> Element {
                                 details {
                                     summary { "Alignment options" }
                                     match *kbo_mode.read() {
-                                        KboMode::Call => rsx! { CallOptsSelector { max_error_prob } },
-                                        KboMode::Find => rsx! { FindOptsSelector { min_len, max_gap_len, max_error_prob } },
-                                        KboMode::Map => rsx! { MapOptsSelector { max_error_prob, do_vc, do_gapfill } },
+                                        KboMode::Call => rsx! { CallOptsSelector { opts: gui_opts } },
+                                        KboMode::Find => rsx! { FindOptsSelector { opts: gui_opts } },
+                                        KboMode::Map => rsx! { MapOptsSelector { opts: gui_opts } },
                                     }
                                 },
                           }
@@ -190,8 +180,8 @@ pub fn Kbo() -> Element {
                                         id: "interactive",
                                         checked: true,
                                         onchange: move |_| {
-                                            let old: bool = *interactive.read();
-                                            *interactive.write() = !old;
+                                            let old: bool = (*gui_opts.read()).out_opts.interactive;
+                                            (*gui_opts.write()).out_opts.interactive = !old;
                                         }
                                     },
                                     "Interactive output",
@@ -217,42 +207,13 @@ pub fn Kbo() -> Element {
                         },
                         match *kbo_mode.read() {
                             KboMode::Call => {
-                                let mut call_opts = kbo::CallOpts::default();
-                                call_opts.max_error_prob = *max_error_prob.read();
-                                call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
-                                call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
-                                call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-                                rsx!{ Call { ref_contigs: reference, query_contigs: queries, interactive, call_opts } }
+                                rsx!{ Call { ref_contigs: reference, query_contigs: queries, opts: gui_opts } }
                             },
                             KboMode::Find => {
-                                // Mode `Find`
-                                let mut find_opts = kbo::FindOpts::default();
-                                find_opts.max_error_prob = *max_error_prob.read();
-                                find_opts.max_gap_len = *max_gap_len.read() as usize;
-
-                                // Options for indexing reference
-                                let mut build_opts = kbo::BuildOpts::default();
-                                build_opts.k = *kmer_size.read() as usize;
-                                build_opts.dedup_batches = *dedup_batches.read();
-                                build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                rsx! { Find { ref_contigs: reference, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
+                                rsx! { Find { ref_contigs: reference, query_contigs: queries, opts: gui_opts } }
                             },
                             KboMode::Map => {
-                                // Options for indexing reference
-                                let mut build_opts = kbo::BuildOpts::default();
-                                build_opts.build_select = true;
-                                build_opts.k = *kmer_size.read() as usize;
-                                build_opts.dedup_batches = *dedup_batches.read();
-                                build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-
-                                let mut map_opts = kbo::MapOpts::default();
-                                map_opts.max_error_prob = *max_error_prob.read();
-                                map_opts.call_variants = *do_vc.read();
-                                map_opts.fill_gaps = *do_vc.read();
-                                map_opts.sbwt_build_opts = build_opts;
-
-                                rsx! { Map { ref_contigs: reference, query_contigs: queries, map_opts } }
+                                rsx! { Map { ref_contigs: reference, query_contigs: queries, opts: gui_opts } }
                             },
                         }
                     }

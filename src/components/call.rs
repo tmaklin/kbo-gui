@@ -13,6 +13,7 @@
 //
 use crate::dioxus_sortable::*;
 use crate::util::SeqData;
+use crate::opts::GuiOpts;
 
 use chrono::offset::Local;
 use dioxus::prelude::*;
@@ -246,7 +247,7 @@ fn format_call_header(
 
 #[component]
 pub fn CallOptsSelector(
-    max_error_prob: Signal<f64>,
+    opts: Signal<GuiOpts>,
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -260,10 +261,10 @@ pub fn CallOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "1.00",
-                        value: "0.0000001",
+                        value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                            if let Ok(new_prob) = new { (*opts.write()).aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -332,8 +333,7 @@ async fn call_runner(
 pub fn Call(
     ref_contigs: ReadOnlySignal<SeqData>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
-    interactive: ReadOnlySignal<bool>,
-    call_opts: kbo::CallOpts,
+    opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
     if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
@@ -344,11 +344,10 @@ pub fn Call(
     }
 
     let variants = use_resource(move || {
-        let opts = call_opts.clone();
         async move {
             // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            call_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
+            call_runner(&ref_contigs.read(), &query_contigs.read(), opts.read().to_kbo_call()).await
         }
     }).suspend()?;
 
@@ -356,7 +355,7 @@ pub fn Call(
         Ok(data) => {
             let ref_path = ref_contigs.read().file_name.clone();
             rsx! {
-                if *interactive.read() {
+                if opts.read().out_opts.interactive {
                     SortableCallResultTable { data: data.1.to_vec() }
                 } else {
                     CopyableCallResultTable { data: data.1.to_vec(), ref_path, contig_info: data.0.to_vec() }

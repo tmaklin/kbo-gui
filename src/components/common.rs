@@ -14,6 +14,7 @@
 use dioxus::prelude::*;
 
 use crate::util::SeqData;
+use crate::opts::GuiOpts;
 
 #[component]
 pub fn FastaFileSelector(
@@ -62,9 +63,7 @@ pub fn FastaFileSelector(
 
 #[component]
 pub fn BuildOptsSelector(
-    kmer_size: Signal<u32>,
-    dedup_batches: Signal<bool>,
-    prefix_precalc: Signal<u32>,
+    opts: Signal<GuiOpts>
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -78,10 +77,10 @@ pub fn BuildOptsSelector(
                         name: "kmer_size",
                         min: "2",
                         max: "256",
-                        value: kmer_size.read().to_string(),
+                        value: opts.read().build_opts.kmer_size.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u32>();
-                            if let Ok(new_k) = new { kmer_size.set(new_k.clamp(2, 255)) };
+                            if let Ok(new_k) = new { opts.write().build_opts.kmer_size = new_k.clamp(2, 255) };
                         }
                     },
               }
@@ -97,10 +96,10 @@ pub fn BuildOptsSelector(
                       name: "prefix_precalc",
                       min: "1",
                       max: "255",
-                      value: prefix_precalc.read().to_string(),
+                      value: opts.read().build_opts.prefix_precalc.to_string(),
                       onchange: move |event| {
                           let new = event.value().parse::<u32>();
-                          if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
+                          if let Ok(new_precalc) = new { opts.write().build_opts.prefix_precalc = new_precalc };
                       }
                   },
               }
@@ -114,10 +113,10 @@ pub fn BuildOptsSelector(
                       r#type: "checkbox",
                       name: "dedup_batches",
                       id: "dedup_batches",
-                      checked: dedup_batches.read().to_string(),
+                      checked: opts.read().build_opts.dedup_batches.to_string(),
                       onchange: move |_| {
-                          let old: bool = *dedup_batches.read();
-                          *dedup_batches.write() = !old;
+                          let old: bool = (*opts.read()).build_opts.dedup_batches;
+                          (*opts.write()).build_opts.dedup_batches = !old;
                       }
                   },
               }

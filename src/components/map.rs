@@ -14,12 +14,11 @@
 use dioxus::prelude::*;
 
 use crate::util::SeqData;
+use crate::opts::GuiOpts;
 
 #[component]
 pub fn MapOptsSelector(
-    max_error_prob: Signal<f64>,
-    do_vc: Signal<bool>,
-    do_gapfill: Signal<bool>,
+    opts: Signal<GuiOpts>,
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -33,10 +32,10 @@ pub fn MapOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "1.00",
-                        value: "0.0000001",
+                        value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                            if let Ok(new_prob) = new { (*opts.write()).aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -50,10 +49,10 @@ pub fn MapOptsSelector(
                         r#type: "checkbox",
                         id: "do_vc",
                         name: "do_vc",
-                        checked: *do_vc.read(),
+                        checked: opts.read().aln_opts.do_vc,
                         onchange: move |_| {
-                            let old: bool = *do_vc.read();
-                            *do_vc.write() = !old;
+                            let old: bool = opts.read().aln_opts.do_vc;
+                            (*opts.write()).aln_opts.do_vc = !old;
                         }
                     },
               }
@@ -67,10 +66,10 @@ pub fn MapOptsSelector(
                         r#type: "checkbox",
                         id: "do_gapfill",
                         name: "do_gapfill",
-                        checked: *do_gapfill.read(),
+                        checked: opts.read().aln_opts.do_gapfill,
                         onchange: move |_| {
-                            let old: bool = *do_gapfill.read();
-                            *do_gapfill.write() = !old;
+                            let old: bool = opts.read().aln_opts.do_gapfill;
+                            (*opts.write()).aln_opts.do_gapfill = !old;
                         }
                     },
               }
@@ -123,7 +122,7 @@ async fn map_runner(
 pub fn Map(
     ref_contigs: ReadOnlySignal<SeqData>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
-    map_opts: kbo::MapOpts,
+    opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
     if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
@@ -134,11 +133,10 @@ pub fn Map(
     }
 
     let aln = use_resource(move || {
-        let opts = map_opts.clone();
         async move {
             // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            map_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
+            map_runner(&ref_contigs.read(), &query_contigs.read(), opts.read().to_kbo_map()).await
         }
     }).suspend()?;
 

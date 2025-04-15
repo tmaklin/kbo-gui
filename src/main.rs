@@ -15,6 +15,7 @@
 
 mod components;
 mod dioxus_sortable;
+mod opts;
 mod util;
 mod webgui;
 

@@ -16,8 +16,8 @@ use crate::dioxus_sortable::*;
 
 use needletail::Sequence;
 
-use crate::components::common::BuildOptsSelector;
 use crate::util::SeqData;
+use crate::opts::GuiOpts;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 enum FindResultField {
@@ -212,9 +212,7 @@ fn format_find_result(
 
 #[component]
 pub fn FindOptsSelector(
-    min_len: Signal<u64>,
-    max_gap_len: Signal<u64>,
-    max_error_prob: Signal<f64>,
+    opts: Signal<GuiOpts>,
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -228,10 +226,10 @@ pub fn FindOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "1.00",
-                        value: "0.0000001",
+                        value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                            if let Ok(new_prob) = new { (*opts.write()).aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -247,10 +245,10 @@ pub fn FindOptsSelector(
                         name: "max_gap_len",
                         min: "0",
                         max: "5000",
-                        value: "0",
+                        value: opts.read().aln_opts.max_gap_len.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { max_gap_len.set(new_len) };
+                            if let Ok(new_len) = new { (*opts.write()).aln_opts.max_gap_len = new_len };
                         }
                     },
               }
@@ -266,10 +264,10 @@ pub fn FindOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "5000",
-                        value: "100",
+                        value: opts.read().aln_opts.min_len.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { min_len.set(new_len) };
+                            if let Ok(new_len) = new { (*opts.write()).aln_opts.min_len = new_len };
                         }
                     }
               }
@@ -384,11 +382,7 @@ async fn build_runner(
 pub fn Find(
     ref_contigs: ReadOnlySignal<SeqData>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
-    interactive: ReadOnlySignal<bool>,
-    min_len: ReadOnlySignal<u64>,
-    detailed: ReadOnlySignal<bool>,
-    find_opts: kbo::FindOpts,
-    build_opts: kbo::BuildOpts,
+    opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
     if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
@@ -399,20 +393,19 @@ pub fn Find(
     }
 
     let res = use_resource(move || {
-        let opts = build_opts.clone();
         async move {
             gloo_timers::future::TimeoutFuture::new(100).await;
-            let indexes = build_runner(&ref_contigs.read(), opts, *detailed.read()).await;
-            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_contigs.read(), find_opts).await
+            let indexes = build_runner(&ref_contigs.read(), opts.read().build_opts.to_kbo(), opts.read().out_opts.detailed).await;
+            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_contigs.read(), opts.read().to_kbo_find()).await
         }
     }).suspend()?;
 
     match &*res.read_unchecked() {
         Ok(data) => {
-            let req_len = *min_len.read();
+            let req_len = opts.read().aln_opts.min_len;
             let filtered = data.iter().filter_map(|x| if x.length >= req_len{ Some(x.clone()) } else { None } ).collect::<Vec<FindResult>>();
             rsx! {
-                if *interactive.read() {
+                if opts.read().out_opts.interactive {
                     SortableFindResultTable { data: filtered }
                 } else {
                     CopyableFindResultTable { data: filtered }
