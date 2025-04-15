@@ -87,7 +87,7 @@ pub struct MapRunnerErr {
 
 async fn map_runner(
     reference: &SeqData,
-    queries: &[SeqData],
+    queries: &[IndexData],
     map_opts: kbo::MapOpts,
 ) -> Result<Vec<(String, Vec<u8>)>, MapRunnerErr> {
 
@@ -99,17 +99,12 @@ async fn map_runner(
         return Err(MapRunnerErr{ code: 1, message: "Argument `queries` is empty.".to_string() })
     }
 
-    let aln = queries.iter().map(|query| {
-
-        let (sbwt, lcs) = crate::util::build_sbwt(
-            &query.contigs.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
-            Some(map_opts.sbwt_build_opts.clone()),
-        );
+    let aln = queries.iter().map(|index| {
 
         let res: Vec<u8> = reference.contigs.iter().flat_map(|ref_contig| {
-                                    kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
+                                    kbo::map(&ref_contig.seq, &index.sbwt, &index.lcs, map_opts.clone())
                                 }).collect();
-        (query.file_name.clone(), res)
+        (index.file_name.clone(), res)
     }).collect::<Vec<(String, Vec<u8>)>>();
 
     if !aln.is_empty() {
@@ -134,10 +129,19 @@ pub fn Map(
     }
 
     let aln = use_resource(move || {
+        let indexes = query_contigs.read().iter().map(|x| {
+            let seq_data = query_contigs.read().iter().map(|x| x.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>()).collect::<Vec<Vec<u8>>>();
+            let (sbwt, lcs) = crate::util::build_sbwt(
+                &seq_data,
+                Some(opts.read().build_opts.to_kbo()),
+            );
+            IndexData { sbwt, lcs, file_name: x.file_name.clone(), bases: seq_data.len() }
+        }).collect::<Vec<IndexData>>();
+
         async move {
             // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            map_runner(&ref_contigs.read(), &query_contigs.read(), opts.read().to_kbo_map()).await
+            map_runner(&ref_contigs.read(), &indexes, opts.read().to_kbo_map()).await
         }
     }).suspend()?;
 
