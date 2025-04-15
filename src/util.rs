@@ -16,10 +16,20 @@ use std::ops::Deref;
 use needletail::Sequence;
 use needletail::errors::ParseError;
 
+use sbwt::LcsArray;
+use sbwt::SbwtIndexVariant;
+
 #[derive(Clone, PartialEq)]
 pub struct ContigData {
     pub name: String,
     pub seq: Vec<u8>,
+}
+
+pub struct IndexData {
+    pub sbwt: SbwtIndexVariant,
+    pub lcs: LcsArray,
+    pub file_name: String,
+    pub bases: usize,
 }
 
 #[derive(Clone, Default, PartialEq)]
