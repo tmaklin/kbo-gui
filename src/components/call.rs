@@ -11,9 +11,8 @@
 // the MIT license, <LICENSE-MIT> or <http://opensource.org/licenses/MIT>,
 // at your option.
 //
+use crate::common::*;
 use crate::dioxus_sortable::*;
-use crate::util::IndexData;
-use crate::util::SeqData;
 use crate::opts::GuiOpts;
 
 use chrono::offset::Local;

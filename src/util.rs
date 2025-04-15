@@ -16,27 +16,7 @@ use std::ops::Deref;
 use needletail::Sequence;
 use needletail::errors::ParseError;
 
-use sbwt::LcsArray;
-use sbwt::SbwtIndexVariant;
-
-#[derive(Clone, PartialEq)]
-pub struct ContigData {
-    pub name: String,
-    pub seq: Vec<u8>,
-}
-
-pub struct IndexData {
-    pub sbwt: SbwtIndexVariant,
-    pub lcs: LcsArray,
-    pub file_name: String,
-    pub bases: usize,
-}
-
-#[derive(Clone, Default, PartialEq)]
-pub struct SeqData {
-    pub contigs: Vec<ContigData>,
-    pub file_name: String,
-}
+use crate::common::*;
 
 #[derive(Debug,Clone)]
 pub struct BuilderErr {
@@ -50,6 +30,27 @@ pub fn build_sbwt(
 ) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
     let build_opts = if opts.is_some() { opts } else { Some(kbo::BuildOpts::default()) };
     kbo::index::build_sbwt_from_vecs(ref_data, &build_opts)
+}
+
+pub async fn build_indexes(
+    queries: &[SeqData],
+    build_opts: kbo::BuildOpts,
+) -> Vec<IndexData> {
+    let query_data: Vec<(String, Vec<Vec<u8>>)> = queries.iter()
+                                                                .map(|query| { (
+                                                                    query.file_name.clone(),
+                                                                    query.contigs.iter().map(|contig| {
+                                                                        contig.seq.clone()
+                                                                    }).collect::<Vec<Vec<u8>>>()
+                                                                )
+                                                                }).collect();
+    let mut indexes: Vec<IndexData> = Vec::with_capacity(query_data.len());
+    for (file_name, seq_data) in query_data {
+        let (sbwt, lcs) = crate::util::sbwt_builder(&seq_data, build_opts.clone()).await.unwrap();
+        let index = IndexData { sbwt, lcs, file_name: file_name.clone(), bases: seq_data.iter().map(|x| x.len()).sum() };
+        indexes.push(index);
+    };
+    indexes
 }
 
 pub async fn read_seq_data(file_contents: &Vec<u8>) -> Result<Vec<ContigData>, ParseError> {

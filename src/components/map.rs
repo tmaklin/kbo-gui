@@ -13,8 +13,7 @@
 //
 use dioxus::prelude::*;
 
-use crate::util::IndexData;
-use crate::util::SeqData;
+use crate::common::*;
 use crate::opts::GuiOpts;
 
 #[component]

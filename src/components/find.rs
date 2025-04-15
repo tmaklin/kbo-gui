@@ -16,8 +16,7 @@ use crate::dioxus_sortable::*;
 
 use needletail::Sequence;
 
-use crate::util::IndexData;
-use crate::util::SeqData;
+use crate::common::*;
 use crate::opts::GuiOpts;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]

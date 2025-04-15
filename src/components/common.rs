@@ -13,58 +13,9 @@
 //
 use dioxus::prelude::*;
 
-use crate::util::SeqData;
+use crate::common::*;
 use crate::opts::GuiOpts;
-
-#[component]
-pub fn FastaFileSelector(
-    multiple: bool,
-    out_data: Signal<Vec<SeqData>>,
-) -> Element {
-    let mut error: Signal<String> = use_signal(String::new);
-
-    rsx! {
-        div { class: "row",
-              input {
-                  // tell the input to pick a file
-                  r#type: "file",
-                  // list the accepted extensions
-                  accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-                  // pick multiple files
-                  multiple: multiple,
-                  onchange: move |evt| {
-                      error.set(String::new());
-                      async move {
-                          if let Some(file_engine) = &evt.files() {
-                              let files = file_engine.files();
-                              let mut seq_data: Vec<(String, Vec<u8>)> = Vec::new();
-                              for file_name in &files {
-                                  if let Some(file) = file_engine.read_file(file_name).await
-                                  {
-                                      seq_data.push((file_name.clone(), file));
-                                  }
-                              }
-
-                              let ref_contigs = crate::util::read_fasta_files(&seq_data).await;
-
-                              use_effect(move || {
-                                  match &ref_contigs {
-                                      Ok(ref_data) => out_data.set(ref_data.clone()),
-                                      Err(e) => error.set("Error: ".to_string() + &e.msg),
-                                  }
-                              });
-
-                          }
-                      }
-                  },
-              }
-        },
-        div { class: "row",
-              { (*error.read()).clone() },
-        },
-    }
-}
-
+use crate::util::build_indexes;
 
 #[component]
 pub fn BuildOptsSelector(
@@ -120,11 +71,176 @@ pub fn BuildOptsSelector(
                       id: "dedup_batches",
                       checked: opts.read().build_opts.dedup_batches.to_string(),
                       onchange: move |_| {
-                          let old: bool = (*opts.read()).build_opts.dedup_batches;
-                          (*opts.write()).build_opts.dedup_batches = !old;
+                          let old: bool = opts.read().build_opts.dedup_batches;
+                          opts.write().build_opts.dedup_batches = !old;
                       }
                   },
               }
+        }
+    }
+}
+
+#[component]
+pub fn DetailSwitcher(
+    kbo_mode: Signal<KboMode>,
+    opts: Signal<GuiOpts>,
+) -> Element {
+    rsx! {
+        if *kbo_mode.read() == KboMode::Map {
+            br {}
+        } else {
+            input {
+                r#type: "checkbox",
+                name: "interactive",
+                id: "interactive",
+                checked: true,
+                onchange: move |_| {
+                    let old: bool = opts.read().out_opts.interactive;
+                    opts.write().out_opts.interactive = !old;
+                }
+            },
+            "Interactive output",
+        }
+    }
+}
+
+#[component]
+pub fn FastaFileSelector(
+    multiple: bool,
+    out_data: Signal<Vec<SeqData>>,
+) -> Element {
+    let mut error: Signal<String> = use_signal(String::new);
+
+    rsx! {
+        div { class: "row",
+              input {
+                  // tell the input to pick a file
+                  r#type: "file",
+                  // list the accepted extensions
+                  accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
+                  // pick multiple files
+                  multiple: multiple,
+                  onchange: move |evt| {
+                      error.set(String::new());
+                      async move {
+                          if let Some(file_engine) = &evt.files() {
+                              let files = file_engine.files();
+                              let mut seq_data: Vec<(String, Vec<u8>)> = Vec::new();
+                              for file_name in &files {
+                                  if let Some(file) = file_engine.read_file(file_name).await
+                                  {
+                                      seq_data.push((file_name.clone(), file));
+                                  }
+                              }
+
+                              let ref_contigs = crate::util::read_fasta_files(&seq_data).await;
+
+                              use_effect(move || {
+                                  match &ref_contigs {
+                                      Ok(ref_data) => out_data.set(ref_data.clone()),
+                                      Err(e) => error.set("Error: ".to_string() + &e.msg),
+                                  }
+                              });
+
+                          }
+                      }
+                  },
+              }
+        },
+        div { class: "row",
+              { (*error.read()).clone() },
+        },
+    }
+}
+
+#[component]
+pub fn IndexBuilder(
+    seq_data: ReadOnlySignal<Vec<SeqData>>,
+    gui_opts: ReadOnlySignal<GuiOpts>,
+    cached_index: Signal<Vec<IndexData>>,
+) -> Element {
+    let _ = use_resource(move || async move {
+        // Delay start to render a loading spinner
+        gloo_timers::future::TimeoutFuture::new(100).await;
+        let mut indexes: Vec<IndexData> = Vec::new();
+        if gui_opts.read().out_opts.detailed {
+            let tmp = crate::components::find::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
+            if let Ok(mut data) = tmp {
+                indexes.append(&mut data);
+            }
+        } else {
+            let mut tmp = build_indexes(&seq_data.read(), gui_opts.read().build_opts.to_kbo()).await;
+            indexes.append(&mut tmp);
+        }
+        cached_index.set(indexes);
+    }).suspend()?;
+
+    rsx! {
+        { "".to_string() },
+    }
+}
+
+#[component]
+pub fn InteractivitySwitcher(
+    kbo_mode: Signal<KboMode>,
+    opts: Signal<GuiOpts>,
+) -> Element {
+    rsx! {
+        if *kbo_mode.read() == KboMode::Find {
+            input {
+                r#type: "checkbox",
+                name: "detailed",
+                id: "detailed",
+                checked: false,
+                onchange: move |_| {
+                    let old: bool = opts.read().out_opts.detailed;
+                    opts.write().out_opts.detailed = !old;
+                }
+            },
+            "Split reference by contig",
+        } else {
+            br {},
+        }
+    }
+}
+
+#[component]
+pub fn RunModeSelector(
+    kbo_mode: Signal<KboMode>,
+) -> Element {
+    rsx! {
+
+      // Mode `Call`
+        input {
+            class: if *kbo_mode.read() == KboMode::Call { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Call",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Call;
+            },
+        }
+        " "
+        // Mode `Find`
+        input {
+            class: if *kbo_mode.read() == KboMode::Find { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Find",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Find;
+            },
+        }
+        " "
+        // Mode `Map`
+        input {
+            class: if *kbo_mode.read() == KboMode::Map { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Map",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Map;
+            },
         }
     }
 }

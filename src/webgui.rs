@@ -13,163 +13,16 @@
 //
 use dioxus::prelude::*;
 
-use crate::components::common::FastaFileSelector;
-use crate::components::common::BuildOptsSelector;
+use crate::components::common::*;
 use crate::components::call::*;
 use crate::components::find::*;
 use crate::components::map::*;
 
+use crate::common::*;
+
 use crate::opts::GuiOpts;
 
-use crate::util::IndexData;
-use crate::util::SeqData;
-
 static CSS: Asset = asset!("/assets/main.css");
-
-#[derive(Default, PartialEq)]
-enum KboMode {
-    #[default]
-    Call,
-    Find,
-    Map,
-}
-
-#[component]
-fn RunModeSelector(
-    kbo_mode: Signal<KboMode>,
-) -> Element {
-    rsx! {
-
-      // Mode `Call`
-        input {
-            class: if *kbo_mode.read() == KboMode::Call { "test-active"} else { "test" },
-            r#type: "button",
-            name: "kbo-mode",
-            value: "Call",
-            onclick: move |_| {
-                *kbo_mode.write() = KboMode::Call;
-            },
-        }
-        " "
-        // Mode `Find`
-        input {
-            class: if *kbo_mode.read() == KboMode::Find { "test-active"} else { "test" },
-            r#type: "button",
-            name: "kbo-mode",
-            value: "Find",
-            onclick: move |_| {
-                *kbo_mode.write() = KboMode::Find;
-            },
-        }
-        " "
-        // Mode `Map`
-        input {
-            class: if *kbo_mode.read() == KboMode::Map { "test-active"} else { "test" },
-            r#type: "button",
-            name: "kbo-mode",
-            value: "Map",
-            onclick: move |_| {
-                *kbo_mode.write() = KboMode::Map;
-            },
-        }
-    }
-}
-
-#[component]
-fn InteractivitySwitcher(
-    kbo_mode: Signal<KboMode>,
-    opts: Signal<GuiOpts>,
-) -> Element {
-    rsx! {
-        if *kbo_mode.read() == KboMode::Find {
-            input {
-                r#type: "checkbox",
-                name: "detailed",
-                id: "detailed",
-                checked: false,
-                onchange: move |_| {
-                    let old: bool = opts.read().out_opts.detailed;
-                    opts.write().out_opts.detailed = !old;
-                }
-            },
-            "Split reference by contig",
-        } else {
-            br {},
-        }
-    }
-}
-
-#[component]
-fn DetailSwitcher(
-    kbo_mode: Signal<KboMode>,
-    opts: Signal<GuiOpts>,
-) -> Element {
-    rsx! {
-        if *kbo_mode.read() == KboMode::Map {
-            br {}
-        } else {
-            input {
-                r#type: "checkbox",
-                name: "interactive",
-                id: "interactive",
-                checked: true,
-                onchange: move |_| {
-                    let old: bool = opts.read().out_opts.interactive;
-                    opts.write().out_opts.interactive = !old;
-                }
-            },
-            "Interactive output",
-        }
-    }
-}
-
-async fn build_indexes(
-    queries: &[SeqData],
-    build_opts: kbo::BuildOpts,
-) -> Vec<IndexData> {
-    let query_data: Vec<(String, Vec<Vec<u8>>)> = queries.iter()
-                                                                .map(|query| { (
-                                                                    query.file_name.clone(),
-                                                                    query.contigs.iter().map(|contig| {
-                                                                        contig.seq.clone()
-                                                                    }).collect::<Vec<Vec<u8>>>()
-                                                                )
-                                                                }).collect();
-    let mut indexes: Vec<IndexData> = Vec::with_capacity(query_data.len());
-    for (file_name, seq_data) in query_data {
-        let (sbwt, lcs) = crate::util::sbwt_builder(&seq_data, build_opts.clone()).await.unwrap();
-        let index = IndexData { sbwt, lcs, file_name: file_name.clone(), bases: seq_data.iter().map(|x| x.len()).sum() };
-        indexes.push(index);
-    };
-    indexes
-}
-
-#[component]
-fn IndexBuilder(
-    seq_data: ReadOnlySignal<Vec<SeqData>>,
-    gui_opts: ReadOnlySignal<GuiOpts>,
-    cached_index: Signal<Vec<IndexData>>,
-) -> Element {
-    let _ = use_resource(move || async move {
-        // Delay start to render a loading spinner
-        gloo_timers::future::TimeoutFuture::new(100).await;
-        let mut indexes: Vec<IndexData> = Vec::new();
-        if gui_opts.read().out_opts.detailed {
-            let tmp = crate::components::find::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
-            if let Ok(mut data) = tmp {
-                indexes.append(&mut data);
-            }
-        } else {
-            let mut tmp = build_indexes(&seq_data.read(), gui_opts.read().build_opts.to_kbo()).await;
-            indexes.append(&mut tmp);
-        }
-        cached_index.set(indexes);
-    }).suspend()?;
-
-    rsx! {
-        { "".to_string() },
-    }
-}
 
 #[component]
 pub fn Kbo() -> Element {
