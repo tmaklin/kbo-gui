@@ -292,12 +292,12 @@ pub struct BuildRunnerErr {
 async fn find_runner(
     indexes: &[IndexData],
     queries: &[SeqData],
-    reference: &Vec<SeqData>,
+    ref_file: &String,
     find_opts: kbo::FindOpts,
 ) -> Result<Vec<FindResult>, FindRunnerErr> {
 
-    if reference.is_empty() {
-        return Err(FindRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
+    if ref_file.is_empty() {
+        return Err(FindRunnerErr{ code: 1, message: "Argument `ref_file` is empty.".to_string() })
     }
     if queries.is_empty() {
         return Err(FindRunnerErr{ code: 1, message: "Argument `queries` is empty.".to_string() })
@@ -305,8 +305,6 @@ async fn find_runner(
     if indexes.is_empty() {
         return Err(FindRunnerErr{ code: 1, message: "Argument `indexes` is empty.".to_string() })
     }
-
-    let ref_contigs = reference.first().unwrap();
 
     let res = indexes.iter().flat_map(|index| {
         queries.iter().flat_map(|query| {
@@ -317,13 +315,13 @@ async fn find_runner(
                 let query_bases = contig.seq.len();
                 let run_lengths_fwd = kbo::find(&contig.seq, &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), ref_contigs.file_name.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '+')
+                    format_find_result(x, query.file_name.clone(), ref_file.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '+')
                 }));
 
                 // Add local alignments for reverse complement
                 let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), ref_contigs.file_name.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '-')
+                    format_find_result(x, query.file_name.clone(), ref_file.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '-')
                 }));
 
             });
@@ -340,7 +338,7 @@ async fn find_runner(
     Err(FindRunnerErr{ code: 0, message: "No alignments detected.".to_string() })
 }
 
-async fn build_runner(
+pub async fn build_runner(
     reference: &Vec<SeqData>,
     build_opts: kbo::BuildOpts,
     separately: bool,
@@ -387,12 +385,12 @@ async fn build_runner(
 
 #[component]
 pub fn Find(
-    ref_contigs: ReadOnlySignal<Vec<SeqData>>,
+    indexes: ReadOnlySignal<Vec<IndexData>>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
     opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
-    if ref_contigs.read().is_empty() {
+    if indexes.read().is_empty() {
         return rsx! { { "".to_string() } }
     }
     if query_contigs.read().is_empty() {
@@ -400,10 +398,10 @@ pub fn Find(
     }
 
     let res = use_resource(move || {
+        let ref_name = indexes.read()[0].file_name.clone();
         async move {
             gloo_timers::future::TimeoutFuture::new(100).await;
-            let indexes = build_runner(&ref_contigs.read(), opts.read().build_opts.to_kbo(), opts.read().out_opts.detailed).await;
-            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_contigs.read(), opts.read().to_kbo_find()).await
+            find_runner(&indexes.read(), &query_contigs.read(), &ref_name, opts.read().to_kbo_find()).await
         }
     }).suspend()?;
 

@@ -145,15 +145,24 @@ async fn build_indexes(
 }
 
 #[component]
-fn QueryIndexBuilder(
-    queries: ReadOnlySignal<Vec<SeqData>>,
+fn IndexBuilder(
+    seq_data: ReadOnlySignal<Vec<SeqData>>,
     gui_opts: ReadOnlySignal<GuiOpts>,
     cached_index: Signal<Vec<IndexData>>,
 ) -> Element {
     let _ = use_resource(move || async move {
         // Delay start to render a loading spinner
         gloo_timers::future::TimeoutFuture::new(100).await;
-        let indexes = build_indexes(&queries.read(), gui_opts.read().build_opts.to_kbo()).await;
+        let mut indexes: Vec<IndexData> = Vec::new();
+        if gui_opts.read().out_opts.detailed {
+            let tmp = crate::components::find::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
+            if let Ok(mut data) = tmp {
+                indexes.append(&mut data);
+            }
+        } else {
+            let mut tmp = build_indexes(&seq_data.read(), gui_opts.read().build_opts.to_kbo()).await;
+            indexes.append(&mut tmp);
+        }
         cached_index.set(indexes);
     }).suspend()?;
 
@@ -168,8 +177,9 @@ pub fn Kbo() -> Element {
     let reference: Signal<Vec<SeqData>> = use_signal(Vec::new);
     let queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
 
-    // Cached SBWT
-    let cached_index: Signal<Vec<IndexData>> = use_signal(Vec::new);
+    // Cached SBWTs
+    let query_index: Signal<Vec<IndexData>> = use_signal(Vec::new);
+    let ref_index: Signal<Vec<IndexData>> = use_signal(Vec::new);
 
     // Options
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
@@ -234,16 +244,20 @@ pub fn Kbo() -> Element {
                         fallback: |_| rsx! {
                             span { class: "loader" },
                         },
-                        QueryIndexBuilder { queries, gui_opts, cached_index },
+                        IndexBuilder {
+                            seq_data: if *kbo_mode.read() != KboMode::Find { queries } else { reference },
+                            gui_opts,
+                            cached_index: if *kbo_mode.read() != KboMode::Find { query_index } else { ref_index },
+                        },
                         match *kbo_mode.read() {
                             KboMode::Call => {
-                                rsx!{ Call { ref_contigs: reference, index: cached_index, opts: gui_opts } }
+                                rsx!{ Call { ref_contigs: reference, index: query_index, opts: gui_opts } }
                             },
                             KboMode::Find => {
-                                rsx! { Find { ref_contigs: reference, query_contigs: queries, opts: gui_opts } }
+                                rsx! { Find { indexes: ref_index, query_contigs: queries, opts: gui_opts } }
                             },
                             KboMode::Map => {
-                                rsx! { Map { ref_contigs: reference, indexes: cached_index, opts: gui_opts } }
+                                rsx! { Map { ref_contigs: reference, indexes: query_index, opts: gui_opts } }
                             },
                         }
                     }
