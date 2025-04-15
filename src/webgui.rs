@@ -80,11 +80,6 @@ pub fn Kbo() -> Element {
 
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
-    let version = env!("CARGO_PKG_VERSION").to_string();
-    let footer_string = "kbo-gui v".to_string() + &version;
-    let repository = env!("CARGO_PKG_REPOSITORY").to_string();
-    let homepage = env!("CARGO_PKG_HOMEPAGE").to_string();
-
     let ref_error: Signal<String> = use_signal(String::new);
     let query_error: Signal<String> = use_signal(String::new);
 
@@ -266,13 +261,13 @@ pub fn Kbo() -> Element {
         footer { class: "footer",
                  div { class: "row-footer",
                        div { class: "column-footer",
-                             { footer_string },
+                             { "kbo-gui v".to_string() + env!("CARGO_PKG_VERSION")  },
                        }
                        div { class: "column-footer",
-                             a { href: homepage, "About" },
+                             a { href: env!("CARGO_PKG_HOMEPAGE").to_string(), "About" },
                        }
                        div { class: "column-footer",
-                             a { href: repository, "Report issues" },
+                             a { href: env!("CARGO_PKG_REPOSITORY").to_string(), "Report issues" },
                        }
                  }
         }
