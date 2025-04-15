@@ -272,7 +272,6 @@ pub fn CallOptsSelector(
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub struct CallRunnerErr {
     code: usize,
     message: String,
@@ -337,6 +336,13 @@ pub fn Call(
     call_opts: kbo::CallOpts,
 ) -> Element {
 
+    if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
+        return rsx! { { "".to_string() } }
+    }
+    if query_contigs.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+
     let variants = use_resource(move || {
         let opts = call_opts.clone();
         async move {
@@ -357,6 +363,12 @@ pub fn Call(
                 }
             }
         },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } }
+        Err(e) => {
+            match e.code {
+                0 => rsx! { { "Error: ".to_string() + &e.message } },
+                1 => rsx! { { "Error: ".to_string() + &e.message } },
+                _ => rsx! { { "" } },
+            }
+        },
     }
 }

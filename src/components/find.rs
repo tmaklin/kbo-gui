@@ -285,7 +285,6 @@ pub struct FindRunnerErr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub struct BuildRunnerErr {
     code: usize,
     message: String,
@@ -300,6 +299,12 @@ async fn find_runner(
 
     if reference.contigs.is_empty() || reference.file_name.is_empty() {
         return Err(FindRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
+    }
+    if queries.is_empty() {
+        return Err(FindRunnerErr{ code: 1, message: "Argument `queries` is empty.".to_string() })
+    }
+    if indexes.is_empty() {
+        return Err(FindRunnerErr{ code: 1, message: "Argument `indexes` is empty.".to_string() })
     }
 
     let res = indexes.iter().flat_map(|((sbwt, lcs), ref_contig, ref_bases)| {
@@ -386,6 +391,13 @@ pub fn Find(
     build_opts: kbo::BuildOpts,
 ) -> Element {
 
+    if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
+        return rsx! { { "".to_string() } }
+    }
+    if query_contigs.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+
     let res = use_resource(move || {
         let opts = build_opts.clone();
         async move {
@@ -407,6 +419,11 @@ pub fn Find(
                 }
             }
         },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
+        Err(e) => {
+            match e.code {
+                0 => rsx! { { "Error: ".to_string() + &e.message } },
+                _ => rsx! { { "" } },
+            }
+        },
     }
 }

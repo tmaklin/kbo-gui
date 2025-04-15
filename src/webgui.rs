@@ -238,61 +238,52 @@ pub fn Kbo() -> Element {
 
               // Dynamically rendered components,
               // based on which KboMode is selected.
-              {
+              div { class: "row-results",
+                    SuspenseBoundary {
+                        fallback: |_| rsx! {
+                            span { class: "loader" },
+                        },
+                        match *kbo_mode.read() {
+                            KboMode::Call => {
+                                let mut call_opts = kbo::CallOpts::default();
+                                call_opts.max_error_prob = *max_error_prob.read();
+                                call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
+                                call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
+                                call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+                                rsx!{ Call { ref_contigs: reference, query_contigs: queries, interactive, call_opts } }
+                            },
+                            KboMode::Find => {
+                                // Mode `Find`
+                                let mut find_opts = kbo::FindOpts::default();
+                                find_opts.max_error_prob = *max_error_prob.read();
+                                find_opts.max_gap_len = *max_gap_len.read() as usize;
 
-                  if !(reference.read().contigs.is_empty()) && !(queries.read().is_empty()) {
-                      rsx! {
-                          div { class: "row-results",
-                                SuspenseBoundary {
-                                    fallback: |_| rsx! {
-                                        span { class: "loader" },
-                                    },
-                                    match *kbo_mode.read() {
-                                        KboMode::Call => {
-                                            let mut call_opts = kbo::CallOpts::default();
-                                            call_opts.max_error_prob = *max_error_prob.read();
-                                            call_opts.sbwt_build_opts.k = *kmer_size.read() as usize;
-                                            call_opts.sbwt_build_opts.dedup_batches = *dedup_batches.read();
-                                            call_opts.sbwt_build_opts.prefix_precalc = *prefix_precalc.read() as usize;
-                                            rsx!{ Call { ref_contigs: reference, query_contigs: queries, interactive, call_opts } }
-                                        },
-                                        KboMode::Find => {
-                                            // Mode `Find`
-                                            let mut find_opts = kbo::FindOpts::default();
-                                            find_opts.max_error_prob = *max_error_prob.read();
-                                            find_opts.max_gap_len = *max_gap_len.read() as usize;
+                                // Options for indexing reference
+                                let mut build_opts = kbo::BuildOpts::default();
+                                build_opts.k = *kmer_size.read() as usize;
+                                build_opts.dedup_batches = *dedup_batches.read();
+                                build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
-                                            // Options for indexing reference
-                                            let mut build_opts = kbo::BuildOpts::default();
-                                            build_opts.k = *kmer_size.read() as usize;
-                                            build_opts.dedup_batches = *dedup_batches.read();
-                                            build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+                                rsx! { Find { ref_contigs: reference, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
+                            },
+                            KboMode::Map => {
+                                // Options for indexing reference
+                                let mut build_opts = kbo::BuildOpts::default();
+                                build_opts.build_select = true;
+                                build_opts.k = *kmer_size.read() as usize;
+                                build_opts.dedup_batches = *dedup_batches.read();
+                                build_opts.prefix_precalc = *prefix_precalc.read() as usize;
 
-                                            rsx! { Find { ref_contigs: reference, query_contigs: queries, interactive, min_len, detailed, find_opts, build_opts } }
-                                        },
-                                        KboMode::Map => {
-                                            // Options for indexing reference
-                                            let mut build_opts = kbo::BuildOpts::default();
-                                            build_opts.build_select = true;
-                                            build_opts.k = *kmer_size.read() as usize;
-                                            build_opts.dedup_batches = *dedup_batches.read();
-                                            build_opts.prefix_precalc = *prefix_precalc.read() as usize;
+                                let mut map_opts = kbo::MapOpts::default();
+                                map_opts.max_error_prob = *max_error_prob.read();
+                                map_opts.call_variants = *do_vc.read();
+                                map_opts.fill_gaps = *do_vc.read();
+                                map_opts.sbwt_build_opts = build_opts;
 
-                                            let mut map_opts = kbo::MapOpts::default();
-                                            map_opts.max_error_prob = *max_error_prob.read();
-                                            map_opts.call_variants = *do_vc.read();
-                                            map_opts.fill_gaps = *do_vc.read();
-                                            map_opts.sbwt_build_opts = build_opts;
-
-                                            rsx! { Map { ref_contigs: reference, query_contigs: queries, map_opts } }
-                                        },
-                                    }
-                                }
-                          }
-                      }
-                  } else {
-                      rsx! { { "" } }
-                  }
+                                rsx! { Map { ref_contigs: reference, query_contigs: queries, map_opts } }
+                            },
+                        }
+                    }
               }
         }
         footer { class: "footer",

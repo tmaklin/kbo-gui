@@ -80,7 +80,6 @@ pub fn MapOptsSelector(
 
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub struct MapRunnerErr {
     code: usize,
     message: String,
@@ -117,7 +116,7 @@ async fn map_runner(
         return Ok(aln)
     }
 
-    Err(MapRunnerErr{ code: 1, message: "Mapping error.".to_string() })
+    Err(MapRunnerErr{ code: 0, message: "Mapping error.".to_string() })
 }
 
 #[component]
@@ -126,6 +125,13 @@ pub fn Map(
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
     map_opts: kbo::MapOpts,
 ) -> Element {
+
+    if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
+        return rsx! { { "".to_string() } }
+    }
+    if query_contigs.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
 
     let aln = use_resource(move || {
         let opts = map_opts.clone();
@@ -142,7 +148,12 @@ pub fn Map(
                 CopyableMapResult { data: data.to_vec() }
             }
         },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
+        Err(e) => {
+            match e.code {
+                0 => rsx! { { "Error: ".to_string() + &e.message } },
+                _ => rsx! { { "" } },
+            }
+        },
     }
 }
 
