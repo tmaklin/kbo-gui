@@ -123,6 +123,27 @@ fn DetailSwitcher(
     }
 }
 
+async fn build_indexes(
+    queries: &[SeqData],
+    build_opts: kbo::BuildOpts,
+) -> Vec<IndexData> {
+    let query_data: Vec<(String, Vec<Vec<u8>>)> = queries.iter()
+                                                                .map(|query| { (
+                                                                    query.file_name.clone(),
+                                                                    query.contigs.iter().map(|contig| {
+                                                                        contig.seq.clone()
+                                                                    }).collect::<Vec<Vec<u8>>>()
+                                                                )
+                                                                }).collect();
+    let mut indexes: Vec<IndexData> = Vec::with_capacity(query_data.len());
+    for (file_name, seq_data) in query_data {
+        let (sbwt, lcs) = crate::util::sbwt_builder(&seq_data, build_opts.clone()).await.unwrap();
+        let index = IndexData { sbwt, lcs, file_name: file_name.clone(), bases: seq_data.iter().map(|x| x.len()).sum() };
+        indexes.push(index);
+    };
+    indexes
+}
+
 #[component]
 fn QueryIndexBuilder(
     queries: ReadOnlySignal<Vec<SeqData>>,
@@ -132,21 +153,7 @@ fn QueryIndexBuilder(
     let _ = use_resource(move || async move {
         // Delay start to render a loading spinner
         gloo_timers::future::TimeoutFuture::new(100).await;
-
-        let query_data: Vec<(String, Vec<Vec<u8>>)> = queries.read().iter()
-                                                                    .map(|query| { (
-                                                                        query.file_name.clone(),
-                                                                        query.contigs.iter().map(|contig| {
-                                                                            contig.seq.clone()
-                                                                        }).collect::<Vec<Vec<u8>>>()
-                                                                    )
-                                                                    }).collect();
-        let mut indexes: Vec<IndexData> = Vec::with_capacity(query_data.len());
-        for (file_name, seq_data) in query_data {
-            let (sbwt, lcs) = crate::util::sbwt_builder(&seq_data, gui_opts.read().build_opts.to_kbo()).await.unwrap();
-            let index = IndexData { sbwt, lcs, file_name: file_name.clone(), bases: seq_data.iter().map(|x| x.len()).sum() };
-            indexes.push(index);
-        }
+        let indexes = build_indexes(&queries.read(), gui_opts.read().build_opts.to_kbo()).await;
         cached_index.set(indexes);
     }).suspend()?;
 
