@@ -86,12 +86,12 @@ pub struct MapRunnerErr {
 }
 
 async fn map_runner(
-    reference: &SeqData,
+    reference: &[SeqData],
     queries: &[IndexData],
     map_opts: kbo::MapOpts,
 ) -> Result<Vec<(String, Vec<u8>)>, MapRunnerErr> {
 
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
+    if reference.is_empty() {
         return Err(MapRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
     }
 
@@ -99,9 +99,10 @@ async fn map_runner(
         return Err(MapRunnerErr{ code: 1, message: "Argument `queries` is empty.".to_string() })
     }
 
+    let ref_contigs = reference.first().unwrap();
     let aln = queries.iter().map(|index| {
 
-        let res: Vec<u8> = reference.contigs.iter().flat_map(|ref_contig| {
+        let res: Vec<u8> = ref_contigs.contigs.iter().flat_map(|ref_contig| {
                                     kbo::map(&ref_contig.seq, &index.sbwt, &index.lcs, map_opts.clone())
                                 }).collect();
         (index.file_name.clone(), res)
@@ -116,32 +117,22 @@ async fn map_runner(
 
 #[component]
 pub fn Map(
-    ref_contigs: ReadOnlySignal<SeqData>,
-    query_contigs: ReadOnlySignal<Vec<SeqData>>,
+    ref_contigs: ReadOnlySignal<Vec<SeqData>>,
+    indexes: ReadOnlySignal<Vec<IndexData>>,
     opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
-    if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
+    if ref_contigs.read().is_empty() {
         return rsx! { { "".to_string() } }
     }
-    if query_contigs.read().is_empty() {
+    if indexes.read().is_empty() {
         return rsx! { { "".to_string() } }
     }
 
     let aln = use_resource(move || {
-        let indexes = query_contigs.read().iter().map(|x| {
-            let seq_data = query_contigs.read().iter().map(|x| x.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>()).collect::<Vec<Vec<u8>>>();
-            let (sbwt, lcs) = crate::util::build_sbwt(
-                &seq_data,
-                Some(opts.read().build_opts.to_kbo()),
-            );
-            IndexData { sbwt, lcs, file_name: x.file_name.clone(), bases: seq_data.len() }
-        }).collect::<Vec<IndexData>>();
-
         async move {
-            // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            map_runner(&ref_contigs.read(), &indexes, opts.read().to_kbo_map()).await
+            map_runner(&ref_contigs.read(), &indexes.read(), opts.read().to_kbo_map()).await
         }
     }).suspend()?;
 

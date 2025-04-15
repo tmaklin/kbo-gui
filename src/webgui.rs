@@ -21,6 +21,7 @@ use crate::components::map::*;
 
 use crate::opts::GuiOpts;
 
+use crate::util::IndexData;
 use crate::util::SeqData;
 
 static CSS: Asset = asset!("/assets/main.css");
@@ -123,11 +124,45 @@ fn DetailSwitcher(
 }
 
 #[component]
+fn QueryIndexBuilder(
+    queries: ReadOnlySignal<Vec<SeqData>>,
+    gui_opts: ReadOnlySignal<GuiOpts>,
+    cached_index: Signal<Vec<IndexData>>,
+) -> Element {
+    let _ = use_resource(move || async move {
+        // Delay start to render a loading spinner
+        gloo_timers::future::TimeoutFuture::new(100).await;
+
+        let query_data: Vec<(String, Vec<Vec<u8>>)> = queries.read().iter()
+                                                                    .map(|query| { (
+                                                                        query.file_name.clone(),
+                                                                        query.contigs.iter().map(|contig| {
+                                                                            contig.seq.clone()
+                                                                        }).collect::<Vec<Vec<u8>>>()
+                                                                    )
+                                                                    }).collect();
+        let mut indexes: Vec<IndexData> = Vec::with_capacity(query_data.len());
+        for (file_name, seq_data) in query_data {
+            let (sbwt, lcs) = crate::util::sbwt_builder(&seq_data, gui_opts.read().build_opts.to_kbo()).await.unwrap();
+            let index = IndexData { sbwt, lcs, file_name: file_name.clone(), bases: seq_data.iter().map(|x| x.len()).sum() };
+            indexes.push(index);
+        }
+        cached_index.set(indexes);
+    }).suspend()?;
+
+    rsx! {
+        { "".to_string() },
+    }
+}
+
+#[component]
 pub fn Kbo() -> Element {
     // Input data
-    let mut reference: Signal<SeqData> = use_signal(SeqData::default);
-    let tmp_data: Signal<Vec<SeqData>> = use_signal(Vec::new);
+    let reference: Signal<Vec<SeqData>> = use_signal(Vec::new);
     let queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
+
+    // Cached SBWT
+    let cached_index: Signal<Vec<IndexData>> = use_signal(Vec::new);
 
     // Options
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
@@ -148,7 +183,7 @@ pub fn Kbo() -> Element {
                           div { class: "row",
                                 strong { "Reference file" },
                           }
-                          FastaFileSelector { multiple: false, out_data: tmp_data },
+                          FastaFileSelector { multiple: false, out_data: reference },
 
                           div { class: "row",
                                 details {
@@ -188,27 +223,20 @@ pub fn Kbo() -> Element {
               // Dynamically rendered components,
               // based on which KboMode is selected.
               div { class: "row-results",
-                    {
-                        if !tmp_data.read().is_empty() {
-                            use_effect(move || {
-                                reference.set(tmp_data.read()[0].clone());
-                            });
-                        }
-                    }
-
                     SuspenseBoundary {
                         fallback: |_| rsx! {
                             span { class: "loader" },
                         },
+                        QueryIndexBuilder { queries, gui_opts, cached_index },
                         match *kbo_mode.read() {
                             KboMode::Call => {
-                                rsx!{ Call { ref_contigs: reference, query_contigs: queries, opts: gui_opts } }
+                                rsx!{ Call { ref_contigs: reference, index: cached_index, opts: gui_opts } }
                             },
                             KboMode::Find => {
                                 rsx! { Find { ref_contigs: reference, query_contigs: queries, opts: gui_opts } }
                             },
                             KboMode::Map => {
-                                rsx! { Map { ref_contigs: reference, query_contigs: queries, opts: gui_opts } }
+                                rsx! { Map { ref_contigs: reference, indexes: cached_index, opts: gui_opts } }
                             },
                         }
                     }

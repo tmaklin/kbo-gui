@@ -292,11 +292,11 @@ pub struct BuildRunnerErr {
 async fn find_runner(
     indexes: &[IndexData],
     queries: &[SeqData],
-    reference: &SeqData,
+    reference: &Vec<SeqData>,
     find_opts: kbo::FindOpts,
 ) -> Result<Vec<FindResult>, FindRunnerErr> {
 
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
+    if reference.is_empty() {
         return Err(FindRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
     }
     if queries.is_empty() {
@@ -305,6 +305,8 @@ async fn find_runner(
     if indexes.is_empty() {
         return Err(FindRunnerErr{ code: 1, message: "Argument `indexes` is empty.".to_string() })
     }
+
+    let ref_contigs = reference.first().unwrap();
 
     let res = indexes.iter().flat_map(|index| {
         queries.iter().flat_map(|query| {
@@ -315,13 +317,13 @@ async fn find_runner(
                 let query_bases = contig.seq.len();
                 let run_lengths_fwd = kbo::find(&contig.seq, &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), reference.file_name.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '+')
+                    format_find_result(x, query.file_name.clone(), ref_contigs.file_name.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '+')
                 }));
 
                 // Add local alignments for reverse complement
                 let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), reference.file_name.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '-')
+                    format_find_result(x, query.file_name.clone(), ref_contigs.file_name.clone(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '-')
                 }));
 
             });
@@ -339,17 +341,19 @@ async fn find_runner(
 }
 
 async fn build_runner(
-    reference: &SeqData,
+    reference: &Vec<SeqData>,
     build_opts: kbo::BuildOpts,
     separately: bool,
 ) -> Result<Vec<IndexData>, BuildRunnerErr> {
 
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
+    if reference.is_empty() {
         return Err(BuildRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
     }
 
+    let ref_contigs = reference.first().unwrap();
+
     let res = if !separately {
-        let seq_data: Vec<u8> = reference.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>();
+        let seq_data: Vec<u8> = ref_contigs.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>();
         let bases: usize = seq_data.len();
         let data = &[seq_data];
         let index = crate::util::sbwt_builder(
@@ -357,9 +361,9 @@ async fn build_runner(
             build_opts.clone(),
         );
         let index = index.await.unwrap();
-        vec![IndexData { sbwt: index.0, lcs: index.1, file_name: reference.file_name.clone(), bases }]
+        vec![IndexData { sbwt: index.0, lcs: index.1, file_name: ref_contigs.file_name.clone(), bases }]
     } else {
-        let seq_data: Vec<(String, Vec<u8>)> = reference.contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>();
+        let seq_data: Vec<(String, Vec<u8>)> = ref_contigs.contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>();
 
         let mut indexes: Vec<IndexData> = Vec::new();
         for (contig_name, contig_seq) in seq_data {
@@ -383,12 +387,12 @@ async fn build_runner(
 
 #[component]
 pub fn Find(
-    ref_contigs: ReadOnlySignal<SeqData>,
+    ref_contigs: ReadOnlySignal<Vec<SeqData>>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
     opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
-    if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
+    if ref_contigs.read().is_empty() {
         return rsx! { { "".to_string() } }
     }
     if query_contigs.read().is_empty() {

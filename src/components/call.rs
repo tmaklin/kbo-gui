@@ -280,22 +280,23 @@ pub struct CallRunnerErr {
 }
 
 async fn call_runner(
-    reference: &SeqData,
+    reference: &Vec<SeqData>,
     index: &IndexData,
     call_opts: kbo::CallOpts,
 ) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{
 
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
+    if reference.is_empty() {
         return Err(CallRunnerErr{ code: 2, message: "Argument `reference` is empty.".to_string() })
     }
     if index.lcs.is_empty() || index.file_name.is_empty() || index.bases == 0 {
         return Err(CallRunnerErr{ code: 3, message: "Argument `queries` is empty.".to_string() })
     }
 
-    let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(reference.contigs.len());
+    let ref_contigs = reference.first().unwrap();
+    let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(ref_contigs.contigs.len());
     let mut res: Vec<CallResult> = Vec::new();
 
-    reference.contigs.iter().for_each(|contig| {
+    ref_contigs.contigs.iter().for_each(|contig| {
         let mut header_contents = contig.name.split_whitespace();
         let contig_name = header_contents.next().expect("Contig name");
         contig_info.push((contig.name.clone(), contig.seq.len()));
@@ -323,32 +324,29 @@ async fn call_runner(
 
 #[component]
 pub fn Call(
-    ref_contigs: ReadOnlySignal<SeqData>,
-    query_contigs: ReadOnlySignal<Vec<SeqData>>,
+    ref_contigs: ReadOnlySignal<Vec<SeqData>>,
+    index: ReadOnlySignal<Vec<IndexData>>,
     opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
-    if ref_contigs.read().contigs.is_empty() || ref_contigs.read().file_name.is_empty(){
+    if ref_contigs.read().is_empty() {
         return rsx! { { "".to_string() } }
     }
-    if query_contigs.read().is_empty() {
+    if index.read().is_empty() {
         return rsx! { { "".to_string() } }
     }
 
     let variants = use_resource(move || {
-        let query_data: Vec<Vec<u8>> = query_contigs.read()[0].contigs.iter().map(|x| x.seq.clone()).collect();
         async move {
             // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            let (sbwt, lcs) = crate::util::sbwt_builder(&query_data, opts.read().build_opts.to_kbo()).await.unwrap();
-            let index = IndexData { sbwt, lcs, file_name: query_contigs.read()[0].file_name.clone(), bases: query_data.len() };
-            call_runner(&ref_contigs.read(), &index, opts.read().to_kbo_call()).await
+            call_runner(&ref_contigs.read(), index.read().first().unwrap(), opts.read().to_kbo_call()).await
         }
     }).suspend()?;
 
     match &*variants.read_unchecked() {
         Ok(data) => {
-            let ref_path = ref_contigs.read().file_name.clone();
+            let ref_path = ref_contigs.read()[0].file_name.clone();
             rsx! {
                 if opts.read().out_opts.interactive {
                     SortableCallResultTable { data: data.1.to_vec() }
