@@ -109,11 +109,7 @@ pub fn Kbo() -> Element {
                           }
 
                           div { class: "row",
-                                if !ref_error.read().is_empty() {
-                                    { ref_error.read().to_string() }
-                                } else {
-                                    br {}
-                                }
+                                { ref_error.read().to_string() },
                           },
 
                           div { class: "row",
@@ -152,11 +148,7 @@ pub fn Kbo() -> Element {
                           }
 
                           div { class: "row",
-                                if !query_error.read().is_empty() {
-                                    { query_error.read().to_string() }
-                                } else {
-                                    br {}
-                                }
+                                { query_error.read().to_string() },
                           },
 
                           div { class: "row",
