@@ -283,12 +283,6 @@ pub struct FindRunnerErr {
     message: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct BuildRunnerErr {
-    code: usize,
-    message: String,
-}
-
 async fn find_runner(
     indexes: &[IndexData],
     queries: &[SeqData],
@@ -336,51 +330,6 @@ async fn find_runner(
     }
 
     Err(FindRunnerErr{ code: 0, message: "No alignments detected.".to_string() })
-}
-
-pub async fn build_runner(
-    reference: &[SeqData],
-    build_opts: kbo::BuildOpts,
-    separately: bool,
-) -> Result<Vec<IndexData>, BuildRunnerErr> {
-
-    if reference.is_empty() {
-        return Err(BuildRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
-    }
-
-    let ref_contigs = reference.first().unwrap();
-
-    let res = if !separately {
-        let seq_data: Vec<u8> = ref_contigs.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>();
-        let bases: usize = seq_data.len();
-        let data = &[seq_data];
-        let index = crate::util::sbwt_builder(
-            data,
-            build_opts.clone(),
-        );
-        let index = index.await.unwrap();
-        vec![IndexData { sbwt: index.0, lcs: index.1, file_name: ref_contigs.file_name.clone(), bases }]
-    } else {
-        let seq_data: Vec<(String, Vec<u8>)> = ref_contigs.contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>();
-
-        let mut indexes: Vec<IndexData> = Vec::new();
-        for (contig_name, contig_seq) in seq_data {
-            let bases = contig_seq.len();
-            let data = &[contig_seq];
-            let index = crate::util::sbwt_builder(
-                data,
-                build_opts.clone(),
-            );
-            let index = index.await.unwrap();
-            indexes.push(IndexData { sbwt: index.0, lcs: index.1, file_name: contig_name, bases });
-        }
-        indexes
-    };
-
-    if !res.is_empty() {
-        return Ok(res)
-    }
-    Err(BuildRunnerErr{ code: 0, message: "Couldn't index reference data.".to_string() })
 }
 
 #[component]

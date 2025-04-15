@@ -164,7 +164,7 @@ pub fn IndexBuilder(
         gloo_timers::future::TimeoutFuture::new(100).await;
         let mut indexes: Vec<IndexData> = Vec::new();
         if gui_opts.read().out_opts.detailed {
-            let tmp = crate::components::find::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
+            let tmp = crate::util::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
             if let Ok(mut data) = tmp {
                 indexes.append(&mut data);
             }
