@@ -13,10 +13,12 @@
 //
 use dioxus::prelude::*;
 
+use crate::util::SeqData;
+
 #[component]
 pub fn FastaFileSelector(
     multiple: bool,
-    seq_data: Signal<Vec<(String, Vec<u8>)>>,
+    out_data: Signal<Vec<SeqData>>,
     out_text: Signal<String>,
 ) -> Element {
     rsx! {
@@ -32,14 +34,24 @@ pub fn FastaFileSelector(
                 async move {
                     if let Some(file_engine) = &evt.files() {
                         let files = file_engine.files();
-                        let mut data: Vec<(String, Vec<u8>)> = Vec::new();
+                        let mut seq_data: Vec<(String, Vec<u8>)> = Vec::new();
                         for file_name in &files {
                             if let Some(file) = file_engine.read_file(file_name).await
                             {
-                                data.push((file_name.clone(), file));
+                                seq_data.push((file_name.clone(), file));
                             }
                         }
-                        *seq_data.write() = data;
+
+                        out_text.set(String::new());
+                        let ref_contigs = crate::util::read_fasta_files(&seq_data).await;
+
+                        use_effect(move || {
+                            match &ref_contigs {
+                                Ok(ref_data) => out_data.set(ref_data.clone()),
+                                Err(e) => out_text.set("Error: ".to_string() + &e.msg.to_string()),
+                            }
+                        });
+
                     }
                 }
             },

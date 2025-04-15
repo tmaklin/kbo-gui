@@ -73,11 +73,10 @@ fn RunModeSelector(
 
 #[component]
 pub fn Kbo() -> Element {
-    let ref_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(|| { Vec::with_capacity(1) });
-    let query_files: Signal<Vec<(String, Vec<u8>)>> = use_signal(Vec::new);
 
     let mut reference: Signal<SeqData> = use_signal(SeqData::default);
-    let mut queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
+    let tmp_data: Signal<Vec<SeqData>> = use_signal(Vec::new);
+    let queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
 
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
@@ -86,9 +85,8 @@ pub fn Kbo() -> Element {
     let repository = env!("CARGO_PKG_REPOSITORY").to_string();
     let homepage = env!("CARGO_PKG_HOMEPAGE").to_string();
 
-    let mut ref_error: Signal<String> = use_signal(String::new);
-    let mut query_error: Signal<String> = use_signal(String::new);
-
+    let ref_error: Signal<String> = use_signal(String::new);
+    let query_error: Signal<String> = use_signal(String::new);
 
     // Options for indexing reference
     let kmer_size: Signal<u32> = use_signal(|| 51);
@@ -122,25 +120,10 @@ pub fn Kbo() -> Element {
                                 strong { "Reference file" },
                           }
                           div { class: "row",
-                                FastaFileSelector { multiple: false, seq_data: ref_files, out_text: ref_error },
+                                FastaFileSelector { multiple: false, out_data: tmp_data, out_text: ref_error },
                           }
 
                           div { class: "row",
-                                {
-                                    let ref_contigs = use_resource(move || async move {
-                                        ref_error.set(String::new());
-                                        crate::util::read_fasta_files(&ref_files.read()).await
-                                    });
-                                    use_effect(move || {
-                                        if ref_files.read().len() > 0 && ref_contigs.state() == UseResourceState::Ready {
-                                            match (*ref_contigs.read()).as_ref().unwrap() {
-                                                Ok(ref_data) => reference.set((*ref_data.clone())[0].clone()),
-                                                Err(e) => ref_error.set("Error: ".to_string() + &e.msg.to_string()),
-                                            }
-                                        }
-                                    });
-                                }
-
                                 if !ref_error.read().is_empty() {
                                     { ref_error.read().to_string() }
                                 } else {
@@ -180,24 +163,10 @@ pub fn Kbo() -> Element {
                                 strong { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
                           }
                           div { class: "row",
-                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, seq_data: query_files, out_text: query_error }
+                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, out_data: queries, out_text: query_error }
                           }
 
                           div { class: "row",
-                                {
-                                    let query_contigs = use_resource(move || async move {
-                                        query_error.set(String::new());
-                                        crate::util::read_fasta_files(&query_files.read()).await
-                                    });
-                                    use_effect(move || {
-                                        if query_files.read().len() > 0 && query_contigs.state() == UseResourceState::Ready {
-                                            match (*query_contigs.read()).as_ref().unwrap() {
-                                                Ok(query_data) => queries.set((*query_data.clone()).to_vec()),
-                                                Err(e) => query_error.set("Error: ".to_string() + &e.msg.to_string()),
-                                            }
-                                        }
-                                    });
-                                }
                                 if !query_error.read().is_empty() {
                                     { query_error.read().to_string() }
                                 } else {
@@ -239,6 +208,14 @@ pub fn Kbo() -> Element {
               // Dynamically rendered components,
               // based on which KboMode is selected.
               div { class: "row-results",
+                    {
+                        if !tmp_data.read().is_empty() {
+                            use_effect(move || {
+                                reference.set(tmp_data.read()[0].clone());
+                            });
+                        }
+                    }
+
                     SuspenseBoundary {
                         fallback: |_| rsx! {
                             span { class: "loader" },
