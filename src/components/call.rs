@@ -12,6 +12,7 @@
 // at your option.
 //
 use crate::dioxus_sortable::*;
+use crate::util::IndexData;
 use crate::util::SeqData;
 use crate::opts::GuiOpts;
 
@@ -280,52 +281,43 @@ pub struct CallRunnerErr {
 
 async fn call_runner(
     reference: &SeqData,
-    queries: &[SeqData],
+    index: &IndexData,
     call_opts: kbo::CallOpts,
 ) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{
 
     if reference.contigs.is_empty() || reference.file_name.is_empty() {
         return Err(CallRunnerErr{ code: 2, message: "Argument `reference` is empty.".to_string() })
     }
-    if queries.is_empty() {
+    if index.lcs.is_empty() || index.file_name.is_empty() || index.bases == 0 {
         return Err(CallRunnerErr{ code: 3, message: "Argument `queries` is empty.".to_string() })
     }
 
-    let query_data: Vec<Vec<u8>> = queries[0].contigs.iter().map(|x| x.seq.clone()).collect();
-    let index = crate::util::sbwt_builder(&query_data, call_opts.sbwt_build_opts.clone()).await;
+    let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(reference.contigs.len());
+    let mut res: Vec<CallResult> = Vec::new();
 
-    match index {
-        Ok((sbwt_query, sbwt_lcs)) => {
+    reference.contigs.iter().for_each(|contig| {
+        let mut header_contents = contig.name.split_whitespace();
+        let contig_name = header_contents.next().expect("Contig name");
+        contig_info.push((contig.name.clone(), contig.seq.len()));
+        let variants = kbo::call(&index.sbwt, &index.lcs, &contig.seq, call_opts.clone());
 
-            let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(reference.contigs.len());
-            let mut res: Vec<CallResult> = Vec::new();
+        res.extend(variants.iter().flat_map(|variant| {
 
-            reference.contigs.iter().for_each(|contig| {
-                let mut header_contents = contig.name.split_whitespace();
-                let contig_name = header_contents.next().expect("Contig name");
-                contig_info.push((contig.name.clone(), contig.seq.len()));
-                let variants = kbo::call(&sbwt_query, &sbwt_lcs, &contig.seq, call_opts.clone());
-
-                res.extend(variants.iter().flat_map(|variant| {
-
-                    let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
-                    if flanking.is_some() {
-                        let (var1, var2) = flanking.unwrap();
-                        let record1 = format_call_result(&var1, &contig.seq, contig_name);
-                        let record2 = format_call_result(&var2, &contig.seq, contig_name);
-                        vec![record1, record2]
-                    } else {
-                        vec![format_call_result(variant, &contig.seq, contig_name)]
-                    }
-                }));
-            });
-            if !res.is_empty() {
-                Ok((contig_info, res))
+            let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
+            if flanking.is_some() {
+                let (var1, var2) = flanking.unwrap();
+                let record1 = format_call_result(&var1, &contig.seq, contig_name);
+                let record2 = format_call_result(&var2, &contig.seq, contig_name);
+                vec![record1, record2]
             } else {
-                Err(CallRunnerErr{ code: 0, message: "No variants detected.".to_string() })
+                vec![format_call_result(variant, &contig.seq, contig_name)]
             }
-        },
-        Err(_) => Err(CallRunnerErr{ code: 1, message: "Variant calling error.".to_string() })
+        }));
+    });
+    if !res.is_empty() {
+        Ok((contig_info, res))
+    } else {
+        Err(CallRunnerErr{ code: 0, message: "No variants detected.".to_string() })
     }
 }
 
@@ -344,10 +336,13 @@ pub fn Call(
     }
 
     let variants = use_resource(move || {
+        let query_data: Vec<Vec<u8>> = query_contigs.read()[0].contigs.iter().map(|x| x.seq.clone()).collect();
         async move {
             // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            call_runner(&ref_contigs.read(), &query_contigs.read(), opts.read().to_kbo_call()).await
+            let (sbwt, lcs) = crate::util::sbwt_builder(&query_data, opts.read().build_opts.to_kbo()).await.unwrap();
+            let index = IndexData { sbwt, lcs, file_name: query_contigs.read()[0].file_name.clone(), bases: query_data.len() };
+            call_runner(&ref_contigs.read(), &index, opts.read().to_kbo_call()).await
         }
     }).suspend()?;
 
