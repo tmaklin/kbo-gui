@@ -83,9 +83,6 @@ pub fn Kbo() -> Element {
 
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
 
-    let ref_error: Signal<String> = use_signal(String::new);
-    let query_error: Signal<String> = use_signal(String::new);
-
     // Options
     let mut gui_opts: Signal<GuiOpts> = use_signal(GuiOpts::default);
 
@@ -104,13 +101,7 @@ pub fn Kbo() -> Element {
                           div { class: "row",
                                 strong { "Reference file" },
                           }
-                          div { class: "row",
-                                FastaFileSelector { multiple: false, out_data: tmp_data, out_text: ref_error },
-                          }
-
-                          div { class: "row",
-                                { ref_error.read().to_string() },
-                          },
+                          FastaFileSelector { multiple: false, out_data: tmp_data },
 
                           div { class: "row",
                                 details {
@@ -143,13 +134,7 @@ pub fn Kbo() -> Element {
                           div { class: "row",
                                 strong { { "Query file".to_string() + if *kbo_mode.read() != KboMode::Call { "(s)" } else { "" } } }
                           }
-                          div { class: "row",
-                                FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, out_data: queries, out_text: query_error }
-                          }
-
-                          div { class: "row",
-                                { query_error.read().to_string() },
-                          },
+                          FastaFileSelector { multiple: *kbo_mode.read() != KboMode::Call, out_data: queries },
 
                           div { class: "row",
                                 details {

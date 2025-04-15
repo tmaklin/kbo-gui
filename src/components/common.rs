@@ -20,43 +20,48 @@ use crate::opts::GuiOpts;
 pub fn FastaFileSelector(
     multiple: bool,
     out_data: Signal<Vec<SeqData>>,
-    out_text: Signal<String>,
 ) -> Element {
+    let mut error: Signal<String> = use_signal(String::new);
+
     rsx! {
-        input {
-            // tell the input to pick a file
-            r#type: "file",
-            // list the accepted extensions
-            accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-            // pick multiple files
-            multiple: multiple,
-            onchange: move |evt| {
-              out_text.set(String::new());
-                async move {
-                    if let Some(file_engine) = &evt.files() {
-                        let files = file_engine.files();
-                        let mut seq_data: Vec<(String, Vec<u8>)> = Vec::new();
-                        for file_name in &files {
-                            if let Some(file) = file_engine.read_file(file_name).await
-                            {
-                                seq_data.push((file_name.clone(), file));
-                            }
-                        }
+        div { class: "row",
+              input {
+                  // tell the input to pick a file
+                  r#type: "file",
+                  // list the accepted extensions
+                  accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
+                  // pick multiple files
+                  multiple: multiple,
+                  onchange: move |evt| {
+                      error.set(String::new());
+                      async move {
+                          if let Some(file_engine) = &evt.files() {
+                              let files = file_engine.files();
+                              let mut seq_data: Vec<(String, Vec<u8>)> = Vec::new();
+                              for file_name in &files {
+                                  if let Some(file) = file_engine.read_file(file_name).await
+                                  {
+                                      seq_data.push((file_name.clone(), file));
+                                  }
+                              }
 
-                        out_text.set(String::new());
-                        let ref_contigs = crate::util::read_fasta_files(&seq_data).await;
+                              let ref_contigs = crate::util::read_fasta_files(&seq_data).await;
 
-                        use_effect(move || {
-                            match &ref_contigs {
-                                Ok(ref_data) => out_data.set(ref_data.clone()),
-                                Err(e) => out_text.set("Error: ".to_string() + &e.msg.to_string()),
-                            }
-                        });
+                              use_effect(move || {
+                                  match &ref_contigs {
+                                      Ok(ref_data) => out_data.set(ref_data.clone()),
+                                      Err(e) => error.set("Error: ".to_string() + &e.msg),
+                                  }
+                              });
 
-                    }
-                }
-            },
-        }
+                          }
+                      }
+                  },
+              }
+        },
+        div { class: "row",
+              { (*error.read()).clone() },
+        },
     }
 }
 
