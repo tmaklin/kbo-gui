@@ -76,12 +76,19 @@ pub struct CallResult {
     unknown: String,
 }
 
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct CallResults {
+    calls: Vec<CallResult>,
+    contig_info: Vec<(String, usize)>,
+    ref_file: String,
+}
+
 #[component]
 pub fn SortableCallResultTable(
-    data: Vec::<CallResult>,
+    data: CallResults,
 ) -> Element {
     let sorter = use_sorter::<CallResultField>();
-    sorter.read().sort(data.as_mut_slice());
+    sorter.read().sort(data.calls.as_mut_slice());
 
     rsx! {
         table {
@@ -101,7 +108,7 @@ pub fn SortableCallResultTable(
             }
             tbody {
                 {
-                    data.iter().map(|row| {
+                    data.calls.iter().map(|row| {
                         rsx! {
                             tr {
                                 td { "{row.chromosome}" }
@@ -125,13 +132,11 @@ pub fn SortableCallResultTable(
 
 #[component]
 fn CopyableCallResultTable(
-    data: Vec::<CallResult>,
-    ref_path: String,
-    contig_info: Vec<(String, usize)>,
+    data: CallResults,
 ) -> Element {
 
-    let display = format_call_header(&ref_path, &contig_info) +
-        &data.iter().map(|x| {
+    let display = format_call_header(&data.ref_file, &data.contig_info) +
+        &data.calls.iter().map(|x| {
         x.chromosome.clone() + "\t" +
             &x.position.to_string() + "\t" +
             &x.id.to_string() + "\t" +
@@ -149,7 +154,7 @@ fn CopyableCallResultTable(
             id: "call-result",
             name: "call-result",
             value: display,
-            rows: data.len() + 10,
+            rows: data.calls.len() + 10,
             width: "98%",
         },
     }
@@ -346,11 +351,12 @@ pub fn Call(
     match &*variants.read_unchecked() {
         Ok(data) => {
             let ref_path = ref_contigs.read()[0].file_name.clone();
+            let res = CallResults { calls: data.1.to_vec(), contig_info: data.0.to_vec(), ref_file: ref_path.clone() };
             rsx! {
                 if opts.read().out_opts.interactive {
-                    SortableCallResultTable { data: data.1.to_vec() }
+                    SortableCallResultTable { data: res }
                 } else {
-                    CopyableCallResultTable { data: data.1.to_vec(), ref_path, contig_info: data.0.to_vec() }
+                    CopyableCallResultTable { data: res }
                 }
             }
         },

@@ -84,11 +84,17 @@ pub struct MapRunnerErr {
     message: String,
 }
 
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct MapResult {
+    aln: Vec<u8>,
+    seq_name: String,
+}
+
 async fn map_runner(
     reference: &[SeqData],
     queries: &[IndexData],
     map_opts: kbo::MapOpts,
-) -> Result<Vec<(String, Vec<u8>)>, MapRunnerErr> {
+) -> Result<Vec<MapResult>, MapRunnerErr> {
 
     if reference.is_empty() {
         return Err(MapRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
@@ -104,8 +110,8 @@ async fn map_runner(
         let res: Vec<u8> = ref_contigs.contigs.iter().flat_map(|ref_contig| {
                                     kbo::map(&ref_contig.seq, &index.sbwt, &index.lcs, map_opts.clone())
                                 }).collect();
-        (index.file_name.clone(), res)
-    }).collect::<Vec<(String, Vec<u8>)>>();
+        MapResult { seq_name: index.file_name.clone(), aln: res }
+    }).collect::<Vec<MapResult>>();
 
     if !aln.is_empty() {
         return Ok(aln)
@@ -152,13 +158,13 @@ pub fn Map(
 
 #[component]
 fn CopyableMapResult(
-    data: Vec<(String, Vec<u8>)>,
+    data: Vec<MapResult>,
 ) -> Element {
 
-    let display = data.iter().map(|(file, aln)| {
+    let display = data.iter().map(|result| {
         let mut counter = 0;
-        let mut out = [">".to_owned() + file + &'\n'.to_string(),
-             aln.iter().flat_map(|x| {
+        let mut out = [">".to_owned() + &result.seq_name + &'\n'.to_string(),
+             result.aln.iter().flat_map(|x| {
                  counter += 1;
                  if counter % 80 == 0 {
                      counter = 0;
