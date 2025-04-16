@@ -36,6 +36,21 @@ pub struct IndexData {
     pub bases: usize,
 }
 
+impl Clone for IndexData {
+    fn clone(&self) -> IndexData {
+        IndexData {
+            sbwt: match &self.sbwt {
+                SbwtIndexVariant::SubsetMatrix(index) => {
+                    sbwt::SbwtIndexVariant::SubsetMatrix(index.clone())
+                },
+            },
+            lcs: self.lcs.clone(),
+            file_name: self.file_name.clone(),
+            bases: self.bases,
+        }
+    }
+}
+
 #[derive(Clone, Default, PartialEq)]
 pub struct SeqData {
     pub contigs: Vec<ContigData>,
