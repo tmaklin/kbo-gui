@@ -80,8 +80,8 @@ pub fn MapOptsSelector(
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapRunnerErr {
-    code: usize,
-    message: String,
+    pub code: usize,
+    pub message: String,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -125,6 +125,7 @@ pub fn Map(
     ref_contigs: ReadOnlySignal<Vec<SeqData>>,
     indexes: ReadOnlySignal<Vec<IndexData>>,
     opts: ReadOnlySignal<GuiOpts>,
+    result: Signal<Result<Vec<MapResult>, MapRunnerErr>>,
 ) -> Element {
 
     if ref_contigs.read().is_empty() {
@@ -141,6 +142,7 @@ pub fn Map(
         }
     }).suspend()?;
 
+    result.set((*aln.read()).clone());
     match &*aln.read_unchecked() {
         Ok(data) => {
             rsx! {
