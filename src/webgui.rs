@@ -111,9 +111,6 @@ pub fn Kbo() -> Element {
               // Dynamically rendered components,
               // based on which KboMode is selected.
               div { class: "row-results",
-                    { reference.read().len().to_string() },
-                    { queries.read().len().to_string() },
-                    { index.read().len().to_string() },
                     SuspenseBoundary {
                         fallback: |_| rsx! {
                             span { class: "loader" },
