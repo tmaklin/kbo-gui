@@ -135,13 +135,10 @@ pub fn FastaFileSelector(
 
                               let ref_contigs = crate::util::read_fasta_files(&seq_data).await;
 
-                              use_effect(move || {
-                                  match &ref_contigs {
-                                      Ok(ref_data) => out_data.set(ref_data.clone()),
-                                      Err(e) => error.set("Error: ".to_string() + &e.msg),
-                                  }
-                              });
-
+                              match &ref_contigs {
+                                  Ok(ref_data) => out_data.set(ref_data.clone()),
+                                  Err(e) => error.set("Error: ".to_string() + &e.msg),
+                              }
                           }
                       }
                   },
@@ -159,9 +156,13 @@ pub fn IndexBuilder(
     gui_opts: ReadOnlySignal<GuiOpts>,
     cached_index: Signal<Vec<IndexData>>,
 ) -> Element {
-    let _ = use_resource(move || async move {
+
+  if seq_data.is_empty() {
+      return rsx! { { "".to_string() } }
+  }
+
+  let indexes = use_resource(move || async move {
         // Delay start to render a loading spinner
-        gloo_timers::future::TimeoutFuture::new(100).await;
         let mut indexes: Vec<IndexData> = Vec::new();
         if gui_opts.read().out_opts.detailed {
             let tmp = crate::util::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
@@ -172,8 +173,12 @@ pub fn IndexBuilder(
             let mut tmp = build_indexes(&seq_data.read(), gui_opts.read().build_opts.to_kbo()).await;
             indexes.append(&mut tmp);
         }
-        cached_index.set(indexes);
+        indexes
     }).suspend()?;
+
+    use_effect(move || {
+        cached_index.set(indexes.read().clone());
+    });
 
     rsx! {
         { "".to_string() },
@@ -197,7 +202,7 @@ pub fn InteractivitySwitcher(
                     opts.write().out_opts.detailed = !old;
                 }
             },
-            "Split reference by contig",
+            "Split query by contig",
         } else {
             br {},
         }

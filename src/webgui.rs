@@ -46,9 +46,8 @@ pub fn Kbo() -> Element {
     let reference: Signal<Vec<SeqData>> = use_signal(Vec::new);
     let queries: Signal<Vec<SeqData>> = use_signal(Vec::new);
 
-    // Cached SBWTs
-    let query_index: Signal<Vec<IndexData>> = use_signal(Vec::new);
-    let ref_index: Signal<Vec<IndexData>> = use_signal(Vec::new);
+    // Cached SBWT
+    let index: Signal<Vec<IndexData>> = use_signal(Vec::new);
 
     // Options
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
@@ -116,22 +115,36 @@ pub fn Kbo() -> Element {
                         fallback: |_| rsx! {
                             span { class: "loader" },
                         },
-                        IndexBuilder {
-                            seq_data: if *kbo_mode.read() != KboMode::Find { queries } else { reference },
-                            gui_opts,
-                            cached_index: if *kbo_mode.read() != KboMode::Find { query_index } else { ref_index },
-                        },
+
+                        // Build index
+                        IndexBuilder { seq_data: queries, gui_opts, cached_index: index }
+
+                        // Run commands
                         match *kbo_mode.read() {
                             KboMode::Call => {
-                                rsx!{ Call { ref_contigs: reference, index: query_index, opts: gui_opts, result: results.call } }
+                                rsx!{ Call { ref_contigs: reference, index: index, opts: gui_opts, result: results.call } }
                             },
                             KboMode::Find => {
-                                rsx! { Find { indexes: ref_index, query_contigs: queries, opts: gui_opts, result: results.find } }
+                                rsx! { Find { indexes: index, query_contigs: reference, opts: gui_opts, result: results.find } }
                             },
                             KboMode::Map => {
-                                rsx! { Map { ref_contigs: reference, indexes: query_index, opts: gui_opts, result: results.map } }
+                                rsx! { Map { ref_contigs: reference, indexes: index, opts: gui_opts, result: results.map } }
                             },
                         }
+                    }
+              },
+              div { class: "row-results",
+                    // Render results
+                    match *kbo_mode.read() {
+                        KboMode::Call => {
+                            rsx! { CallRenderer { result: results.call, opts: gui_opts } }
+                        },
+                        KboMode::Find => {
+                            rsx! { FindRenderer { result: results.find, opts: gui_opts } }
+                        },
+                        KboMode::Map => {
+                            rsx! { MapRenderer { result: results.map, opts: gui_opts } }
+                        },
                     }
               }
         }

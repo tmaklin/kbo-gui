@@ -341,16 +341,22 @@ pub fn Call(
         return rsx! { { "".to_string() } }
     }
 
-    let variants = use_resource(move || {
+    let _ = use_resource(move || {
         async move {
-            // Delay start to render a loading spinner
-            gloo_timers::future::TimeoutFuture::new(100).await;
-            call_runner(&ref_contigs.read(), index.read().first().unwrap(), opts.read().to_kbo_call()).await
+            let variants = call_runner(&ref_contigs.read(), index.read().first().unwrap(), opts.read().to_kbo_call()).await;
+            result.set(variants);
         }
     }).suspend()?;
 
-    result.set((*variants.read()).clone());
-    match &*variants.read_unchecked() {
+    rsx!{ br {} }
+}
+
+#[component]
+pub fn CallRenderer(
+    result: ReadOnlySignal<Result<CallResults, CallRunnerErr>>,
+    opts: ReadOnlySignal<GuiOpts>,
+) -> Element {
+    match &*result.read() {
         Ok(res) => {
             rsx! {
                 if opts.read().out_opts.interactive {
