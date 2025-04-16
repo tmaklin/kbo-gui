@@ -24,6 +24,22 @@ use crate::opts::GuiOpts;
 
 static CSS: Asset = asset!("/assets/main.css");
 
+struct ResultCache {
+    pub call: Signal<Result<CallResults, CallRunnerErr>>,
+    pub find: Signal<Result<Vec<FindResult>, FindRunnerErr>>,
+    pub map: Signal<Result<Vec<MapResult>, MapRunnerErr>>,
+}
+
+impl Default for ResultCache {
+    fn default() -> ResultCache {
+        ResultCache {
+            call: use_signal(|| Err(CallRunnerErr{ code: 99, message: "Waiting for data.".to_string() })),
+            find: use_signal(|| Err(FindRunnerErr{ code: 99, message: "Waiting for data.".to_string() })),
+            map: use_signal(|| Err(MapRunnerErr{ code: 99, message: "Waiting for data.".to_string() })),
+        }
+    }
+}
+
 #[component]
 pub fn Kbo() -> Element {
     // Input data
@@ -37,6 +53,9 @@ pub fn Kbo() -> Element {
     // Options
     let kbo_mode: Signal<KboMode> = use_signal(KboMode::default);
     let gui_opts: Signal<GuiOpts> = use_signal(GuiOpts::default);
+
+    // Cached results
+    let results: ResultCache = ResultCache::default();
 
     rsx! {
         document::Stylesheet { href: CSS }
@@ -104,13 +123,13 @@ pub fn Kbo() -> Element {
                         },
                         match *kbo_mode.read() {
                             KboMode::Call => {
-                                rsx!{ Call { ref_contigs: reference, index: query_index, opts: gui_opts } }
+                                rsx!{ Call { ref_contigs: reference, index: query_index, opts: gui_opts, result: results.call } }
                             },
                             KboMode::Find => {
-                                rsx! { Find { indexes: ref_index, query_contigs: queries, opts: gui_opts } }
+                                rsx! { Find { indexes: ref_index, query_contigs: queries, opts: gui_opts, result: results.find } }
                             },
                             KboMode::Map => {
-                                rsx! { Map { ref_contigs: reference, indexes: query_index, opts: gui_opts } }
+                                rsx! { Map { ref_contigs: reference, indexes: query_index, opts: gui_opts, result: results.map } }
                             },
                         }
                     }

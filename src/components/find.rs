@@ -69,7 +69,7 @@ impl Sortable for FindResultField {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct FindResult {
+pub struct FindResult {
     query_file: String,
     ref_file: String,
     start: u64,
@@ -279,8 +279,8 @@ pub fn FindOptsSelector(
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
 pub struct FindRunnerErr {
-    code: usize,
-    message: String,
+    pub code: usize,
+    pub message: String,
 }
 
 async fn find_runner(
@@ -337,6 +337,7 @@ pub fn Find(
     indexes: ReadOnlySignal<Vec<IndexData>>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
     opts: ReadOnlySignal<GuiOpts>,
+    result: Signal<Result<Vec<FindResult>, FindRunnerErr>>,
 ) -> Element {
 
     if indexes.read().is_empty() {
@@ -354,6 +355,7 @@ pub fn Find(
         }
     }).suspend()?;
 
+    result.set((*res.read()).clone());
     match &*res.read_unchecked() {
         Ok(data) => {
             let req_len = opts.read().aln_opts.min_len;

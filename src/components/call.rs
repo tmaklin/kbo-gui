@@ -277,17 +277,17 @@ pub fn CallOptsSelector(
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CallRunnerErr {
-    code: usize,
-    message: String,
+    pub code: usize,
+    pub message: String,
 }
 
 async fn call_runner(
     reference: &[SeqData],
     index: &IndexData,
     call_opts: kbo::CallOpts,
-) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{
+) -> Result<CallResults, CallRunnerErr>{
 
     if reference.is_empty() {
         return Err(CallRunnerErr{ code: 2, message: "Argument `reference` is empty.".to_string() })
@@ -320,7 +320,7 @@ async fn call_runner(
         }));
     });
     if !res.is_empty() {
-        Ok((contig_info, res))
+        Ok(CallResults { calls: res, contig_info, ref_file: reference[0].file_name.clone() })
     } else {
         Err(CallRunnerErr{ code: 0, message: "No variants detected.".to_string() })
     }
@@ -331,6 +331,7 @@ pub fn Call(
     ref_contigs: ReadOnlySignal<Vec<SeqData>>,
     index: ReadOnlySignal<Vec<IndexData>>,
     opts: ReadOnlySignal<GuiOpts>,
+    result: Signal<Result<CallResults, CallRunnerErr>>,
 ) -> Element {
 
     if ref_contigs.read().is_empty() {
@@ -348,15 +349,14 @@ pub fn Call(
         }
     }).suspend()?;
 
+    result.set((*variants.read()).clone());
     match &*variants.read_unchecked() {
-        Ok(data) => {
-            let ref_path = ref_contigs.read()[0].file_name.clone();
-            let res = CallResults { calls: data.1.to_vec(), contig_info: data.0.to_vec(), ref_file: ref_path.clone() };
+        Ok(res) => {
             rsx! {
                 if opts.read().out_opts.interactive {
-                    SortableCallResultTable { data: res }
+                    SortableCallResultTable { data: res.clone() }
                 } else {
-                    CopyableCallResultTable { data: res }
+                    CopyableCallResultTable { data: res.clone() }
                 }
             }
         },
