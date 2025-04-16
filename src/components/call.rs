@@ -343,11 +343,8 @@ pub fn Call(
 
     let _ = use_resource(move || {
         async move {
-            // Delay start to render a loading spinner
-            gloo_timers::future::TimeoutFuture::new(100).await;
             let variants = call_runner(&ref_contigs.read(), index.read().first().unwrap(), opts.read().to_kbo_call()).await;
             result.set(variants);
-            gloo_timers::future::TimeoutFuture::new(100).await
         }
     }).suspend()?;
 

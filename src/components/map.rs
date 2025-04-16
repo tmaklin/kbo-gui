@@ -137,10 +137,8 @@ pub fn Map(
 
     let _ = use_resource(move || {
         async move {
-            gloo_timers::future::TimeoutFuture::new(100).await;
             let aln = map_runner(&ref_contigs.read(), &indexes.read(), opts.read().to_kbo_map()).await;
             result.set(aln);
-            gloo_timers::future::TimeoutFuture::new(10).await
         }
     }).suspend()?;
 
