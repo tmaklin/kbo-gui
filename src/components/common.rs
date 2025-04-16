@@ -13,46 +13,13 @@
 //
 use dioxus::prelude::*;
 
-#[component]
-pub fn FastaFileSelector(
-    multiple: bool,
-    seq_data: Signal<Vec<(String, Vec<u8>)>>,
-    out_text: Signal<String>,
-) -> Element {
-    rsx! {
-        input {
-            // tell the input to pick a file
-            r#type: "file",
-            // list the accepted extensions
-            accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
-            // pick multiple files
-            multiple: multiple,
-            onchange: move |evt| {
-              out_text.set(String::new());
-                async move {
-                    if let Some(file_engine) = &evt.files() {
-                        let files = file_engine.files();
-                        let mut data: Vec<(String, Vec<u8>)> = Vec::new();
-                        for file_name in &files {
-                            if let Some(file) = file_engine.read_file(file_name).await
-                            {
-                                data.push((file_name.clone(), file));
-                            }
-                        }
-                        *seq_data.write() = data;
-                    }
-                }
-            },
-        }
-    }
-}
-
+use crate::common::*;
+use crate::opts::GuiOpts;
+use crate::util::build_indexes;
 
 #[component]
 pub fn BuildOptsSelector(
-    kmer_size: Signal<u32>,
-    dedup_batches: Signal<bool>,
-    prefix_precalc: Signal<u32>,
+    opts: Signal<GuiOpts>
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -66,10 +33,10 @@ pub fn BuildOptsSelector(
                         name: "kmer_size",
                         min: "2",
                         max: "256",
-                        value: kmer_size.read().to_string(),
+                        value: opts.read().build_opts.kmer_size.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u32>();
-                            if let Ok(new_k) = new { kmer_size.set(new_k.clamp(2, 255)) };
+                            if let Ok(new_k) = new { opts.write().build_opts.kmer_size = new_k.clamp(2, 255) };
                         }
                     },
               }
@@ -85,10 +52,10 @@ pub fn BuildOptsSelector(
                       name: "prefix_precalc",
                       min: "1",
                       max: "255",
-                      value: prefix_precalc.read().to_string(),
+                      value: opts.read().build_opts.prefix_precalc.to_string(),
                       onchange: move |event| {
                           let new = event.value().parse::<u32>();
-                          if let Ok(new_precalc) = new { prefix_precalc.set(new_precalc) };
+                          if let Ok(new_precalc) = new { opts.write().build_opts.prefix_precalc = new_precalc };
                       }
                   },
               }
@@ -102,13 +69,178 @@ pub fn BuildOptsSelector(
                       r#type: "checkbox",
                       name: "dedup_batches",
                       id: "dedup_batches",
-                      checked: dedup_batches.read().to_string(),
+                      checked: opts.read().build_opts.dedup_batches.to_string(),
                       onchange: move |_| {
-                          let old: bool = *dedup_batches.read();
-                          *dedup_batches.write() = !old;
+                          let old: bool = opts.read().build_opts.dedup_batches;
+                          opts.write().build_opts.dedup_batches = !old;
                       }
                   },
               }
+        }
+    }
+}
+
+#[component]
+pub fn DetailSwitcher(
+    kbo_mode: Signal<KboMode>,
+    opts: Signal<GuiOpts>,
+) -> Element {
+    rsx! {
+        if *kbo_mode.read() == KboMode::Map {
+            br {}
+        } else {
+            input {
+                r#type: "checkbox",
+                name: "interactive",
+                id: "interactive",
+                checked: true,
+                onchange: move |_| {
+                    let old: bool = opts.read().out_opts.interactive;
+                    opts.write().out_opts.interactive = !old;
+                }
+            },
+            "Interactive output",
+        }
+    }
+}
+
+#[component]
+pub fn FastaFileSelector(
+    multiple: bool,
+    out_data: Signal<Vec<SeqData>>,
+) -> Element {
+    let mut error: Signal<String> = use_signal(String::new);
+
+    rsx! {
+        div { class: "row",
+              input {
+                  // tell the input to pick a file
+                  r#type: "file",
+                  // list the accepted extensions
+                  accept: ".fasta,.fas,.fa,.fna,.ffn,.faa,.mpfa,.frn,.fasta.gz,.fas.gz,.fa.gz,.fna.gz,.ffn.gz,.faa.gz,.mpfa.gz,.frn.gz",
+                  // pick multiple files
+                  multiple: multiple,
+                  onchange: move |evt| {
+                      error.set(String::new());
+                      async move {
+                          if let Some(file_engine) = &evt.files() {
+                              let files = file_engine.files();
+                              let mut seq_data: Vec<(String, Vec<u8>)> = Vec::new();
+                              for file_name in &files {
+                                  if let Some(file) = file_engine.read_file(file_name).await
+                                  {
+                                      seq_data.push((file_name.clone(), file));
+                                  }
+                              }
+
+                              let ref_contigs = crate::util::read_fasta_files(&seq_data).await;
+
+                              use_effect(move || {
+                                  match &ref_contigs {
+                                      Ok(ref_data) => out_data.set(ref_data.clone()),
+                                      Err(e) => error.set("Error: ".to_string() + &e.msg),
+                                  }
+                              });
+
+                          }
+                      }
+                  },
+              }
+        },
+        div { class: "row",
+              { (*error.read()).clone() },
+        },
+    }
+}
+
+#[component]
+pub fn IndexBuilder(
+    seq_data: ReadOnlySignal<Vec<SeqData>>,
+    gui_opts: ReadOnlySignal<GuiOpts>,
+    cached_index: Signal<Vec<IndexData>>,
+) -> Element {
+    let _ = use_resource(move || async move {
+        // Delay start to render a loading spinner
+        gloo_timers::future::TimeoutFuture::new(100).await;
+        let mut indexes: Vec<IndexData> = Vec::new();
+        if gui_opts.read().out_opts.detailed {
+            let tmp = crate::util::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
+            if let Ok(mut data) = tmp {
+                indexes.append(&mut data);
+            }
+        } else {
+            let mut tmp = build_indexes(&seq_data.read(), gui_opts.read().build_opts.to_kbo()).await;
+            indexes.append(&mut tmp);
+        }
+        cached_index.set(indexes);
+    }).suspend()?;
+
+    rsx! {
+        { "".to_string() },
+    }
+}
+
+#[component]
+pub fn InteractivitySwitcher(
+    kbo_mode: Signal<KboMode>,
+    opts: Signal<GuiOpts>,
+) -> Element {
+    rsx! {
+        if *kbo_mode.read() == KboMode::Find {
+            input {
+                r#type: "checkbox",
+                name: "detailed",
+                id: "detailed",
+                checked: false,
+                onchange: move |_| {
+                    let old: bool = opts.read().out_opts.detailed;
+                    opts.write().out_opts.detailed = !old;
+                }
+            },
+            "Split reference by contig",
+        } else {
+            br {},
+        }
+    }
+}
+
+#[component]
+pub fn RunModeSelector(
+    kbo_mode: Signal<KboMode>,
+) -> Element {
+    rsx! {
+
+      // Mode `Call`
+        input {
+            class: if *kbo_mode.read() == KboMode::Call { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Call",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Call;
+            },
+        }
+        " "
+        // Mode `Find`
+        input {
+            class: if *kbo_mode.read() == KboMode::Find { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Find",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Find;
+            },
+        }
+        " "
+        // Mode `Map`
+        input {
+            class: if *kbo_mode.read() == KboMode::Map { "test-active"} else { "test" },
+            r#type: "button",
+            name: "kbo-mode",
+            value: "Map",
+            onclick: move |_| {
+                *kbo_mode.write() = KboMode::Map;
+            },
         }
     }
 }

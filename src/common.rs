@@ -11,21 +11,33 @@
 // the MIT license, <LICENSE-MIT> or <http://opensource.org/licenses/MIT>,
 // at your option.
 //
-#![allow(non_snake_case)]
 
-mod common;
-mod components;
-mod dioxus_sortable;
-mod opts;
-mod util;
-mod webgui;
+use sbwt::LcsArray;
+use sbwt::SbwtIndexVariant;
 
-use dioxus::prelude::launch;
-use dioxus_logger::tracing::{info, Level};
+#[derive(Default, PartialEq)]
+pub enum KboMode {
+    #[default]
+    Call,
+    Find,
+    Map,
+}
 
-fn main() {
-    // Init logger
-    dioxus_logger::init(Level::INFO).expect("failed to init logger");
-    info!("starting app");
-    launch(webgui::Kbo);
+#[derive(Clone, PartialEq)]
+pub struct ContigData {
+    pub name: String,
+    pub seq: Vec<u8>,
+}
+
+pub struct IndexData {
+    pub sbwt: SbwtIndexVariant,
+    pub lcs: LcsArray,
+    pub file_name: String,
+    pub bases: usize,
+}
+
+#[derive(Clone, Default, PartialEq)]
+pub struct SeqData {
+    pub contigs: Vec<ContigData>,
+    pub file_name: String,
 }

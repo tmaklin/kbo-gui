@@ -16,8 +16,8 @@ use crate::dioxus_sortable::*;
 
 use needletail::Sequence;
 
-use crate::components::common::BuildOptsSelector;
-use crate::util::SeqData;
+use crate::common::*;
+use crate::opts::GuiOpts;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 enum FindResultField {
@@ -176,6 +176,7 @@ fn CopyableFindResultTable(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn format_find_result(
     result: &kbo::format::RLE,
     query_file: String,
@@ -212,9 +213,7 @@ fn format_find_result(
 
 #[component]
 pub fn FindOptsSelector(
-    min_len: Signal<u64>,
-    max_gap_len: Signal<u64>,
-    max_error_prob: Signal<f64>,
+    opts: Signal<GuiOpts>,
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -228,10 +227,10 @@ pub fn FindOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "1.00",
-                        value: "0.0000001",
+                        value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                            if let Ok(new_prob) = new { opts.write().aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -247,10 +246,10 @@ pub fn FindOptsSelector(
                         name: "max_gap_len",
                         min: "0",
                         max: "5000",
-                        value: "0",
+                        value: opts.read().aln_opts.max_gap_len.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { max_gap_len.set(new_len) };
+                            if let Ok(new_len) = new { opts.write().aln_opts.max_gap_len = new_len };
                         }
                     },
               }
@@ -266,10 +265,10 @@ pub fn FindOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "5000",
-                        value: "100",
+                        value: opts.read().aln_opts.min_len.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<u64>();
-                            if let Ok(new_len) = new { min_len.set(new_len) };
+                            if let Ok(new_len) = new { opts.write().aln_opts.min_len = new_len };
                         }
                     }
               }
@@ -284,40 +283,39 @@ pub struct FindRunnerErr {
     message: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
-pub struct BuildRunnerErr {
-    code: usize,
-    message: String,
-}
-
 async fn find_runner(
-    indexes: &[((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)],
+    indexes: &[IndexData],
     queries: &[SeqData],
-    reference: &SeqData,
+    ref_file: &str,
     find_opts: kbo::FindOpts,
 ) -> Result<Vec<FindResult>, FindRunnerErr> {
 
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
-        return Err(FindRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
+    if ref_file.is_empty() {
+        return Err(FindRunnerErr{ code: 1, message: "Argument `ref_file` is empty.".to_string() })
+    }
+    if queries.is_empty() {
+        return Err(FindRunnerErr{ code: 1, message: "Argument `queries` is empty.".to_string() })
+    }
+    if indexes.is_empty() {
+        return Err(FindRunnerErr{ code: 1, message: "Argument `indexes` is empty.".to_string() })
     }
 
-    let res = indexes.iter().flat_map(|((sbwt, lcs), ref_contig, ref_bases)| {
+    let res = indexes.iter().flat_map(|index| {
         queries.iter().flat_map(|query| {
             let mut run_lengths: Vec<FindResult> = Vec::new();
 
             // Get local alignments for forward strand
             query.contigs.iter().for_each(|contig| {
                 let query_bases = contig.seq.len();
-                let run_lengths_fwd = kbo::find(&contig.seq, sbwt, lcs, find_opts);
+                let run_lengths_fwd = kbo::find(&contig.seq, &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_fwd.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), reference.file_name.clone(), contig.name.clone(), ref_contig.to_string(), query_bases, *ref_bases, '+')
+                    format_find_result(x, query.file_name.clone(), ref_file.to_string(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '+')
                 }));
 
                 // Add local alignments for reverse complement
-                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), sbwt, lcs, find_opts);
+                let run_lengths_rev = kbo::find(&contig.seq.reverse_complement(), &index.sbwt, &index.lcs, find_opts);
                 run_lengths.extend(run_lengths_rev.iter().map(|x| {
-                    format_find_result(x, query.file_name.clone(), reference.file_name.clone(), contig.name.clone(), ref_contig.clone(), query_bases, *ref_bases, '-')
+                    format_find_result(x, query.file_name.clone(), ref_file.to_string(), contig.name.clone(), index.file_name.clone(), query_bases, index.bases, '-')
                 }));
 
             });
@@ -334,79 +332,45 @@ async fn find_runner(
     Err(FindRunnerErr{ code: 0, message: "No alignments detected.".to_string() })
 }
 
-async fn build_runner(
-    reference: &SeqData,
-    build_opts: kbo::BuildOpts,
-    separately: bool,
-) -> Result<Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)>, BuildRunnerErr> {
-
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
-        return Err(BuildRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
-    }
-
-    let res = if !separately {
-        let seq_data: Vec<u8> = reference.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>();
-        let bases: usize = seq_data.len();
-        let data = &[seq_data];
-        let index = crate::util::sbwt_builder(
-            data,
-            build_opts.clone(),
-        );
-        vec![(index.await.unwrap(), reference.file_name.clone(), bases)]
-    } else {
-        let seq_data: Vec<(String, Vec<u8>)> = reference.contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>();
-
-        let mut indexes: Vec<((sbwt::SbwtIndexVariant, sbwt::LcsArray), String, usize)> = Vec::new();
-        for (contig_name, contig_seq) in seq_data {
-            let bases = contig_seq.len();
-            let data = &[contig_seq];
-            let index = crate::util::sbwt_builder(
-                data,
-                build_opts.clone(),
-            );
-            indexes.push((index.await.unwrap(), contig_name, bases));
-        }
-        indexes
-    };
-
-    if !res.is_empty() {
-        return Ok(res)
-    }
-    Err(BuildRunnerErr{ code: 0, message: "Couldn't index reference data.".to_string() })
-}
-
 #[component]
 pub fn Find(
-    ref_contigs: ReadOnlySignal<SeqData>,
+    indexes: ReadOnlySignal<Vec<IndexData>>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
-    interactive: ReadOnlySignal<bool>,
-    min_len: ReadOnlySignal<u64>,
-    detailed: ReadOnlySignal<bool>,
-    find_opts: kbo::FindOpts,
-    build_opts: kbo::BuildOpts,
+    opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
+    if indexes.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+    if query_contigs.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+
     let res = use_resource(move || {
-        let opts = build_opts.clone();
+        let ref_name = indexes.read()[0].file_name.clone();
         async move {
             gloo_timers::future::TimeoutFuture::new(100).await;
-            let indexes = build_runner(&ref_contigs.read(), opts, *detailed.read()).await;
-            find_runner(&indexes.unwrap(), &query_contigs.read(), &ref_contigs.read(), find_opts).await
+            find_runner(&indexes.read(), &query_contigs.read(), &ref_name, opts.read().to_kbo_find()).await
         }
     }).suspend()?;
 
     match &*res.read_unchecked() {
         Ok(data) => {
-            let req_len = *min_len.read();
+            let req_len = opts.read().aln_opts.min_len;
             let filtered = data.iter().filter_map(|x| if x.length >= req_len{ Some(x.clone()) } else { None } ).collect::<Vec<FindResult>>();
             rsx! {
-                if *interactive.read() {
+                if opts.read().out_opts.interactive {
                     SortableFindResultTable { data: filtered }
                 } else {
                     CopyableFindResultTable { data: filtered }
                 }
             }
         },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
+        Err(e) => {
+            match e.code {
+                0 => rsx! { { "Error: ".to_string() + &e.message } },
+                _ => rsx! { { "" } },
+            }
+        },
     }
 }

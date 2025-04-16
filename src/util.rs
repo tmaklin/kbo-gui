@@ -16,18 +16,9 @@ use std::ops::Deref;
 use needletail::Sequence;
 use needletail::errors::ParseError;
 
-#[derive(Clone, PartialEq)]
-pub struct ContigData {
-    pub name: String,
-    pub seq: Vec<u8>,
-}
+use crate::common::*;
 
-#[derive(Clone, Default, PartialEq)]
-pub struct SeqData {
-    pub contigs: Vec<ContigData>,
-    pub file_name: String,
-}
-
+#[allow(dead_code)]
 #[derive(Debug,Clone)]
 pub struct BuilderErr {
     code: usize,
@@ -40,6 +31,72 @@ pub fn build_sbwt(
 ) -> (sbwt::SbwtIndexVariant, sbwt::LcsArray) {
     let build_opts = if opts.is_some() { opts } else { Some(kbo::BuildOpts::default()) };
     kbo::index::build_sbwt_from_vecs(ref_data, &build_opts)
+}
+
+pub async fn build_indexes(
+    queries: &[SeqData],
+    build_opts: kbo::BuildOpts,
+) -> Vec<IndexData> {
+    let query_data: Vec<(String, Vec<Vec<u8>>)> = queries.iter()
+                                                                .map(|query| { (
+                                                                    query.file_name.clone(),
+                                                                    query.contigs.iter().map(|contig| {
+                                                                        contig.seq.clone()
+                                                                    }).collect::<Vec<Vec<u8>>>()
+                                                                )
+                                                                }).collect();
+    let mut indexes: Vec<IndexData> = Vec::with_capacity(query_data.len());
+    for (file_name, seq_data) in query_data {
+        let (sbwt, lcs) = crate::util::sbwt_builder(&seq_data, build_opts.clone()).await.unwrap();
+        let index = IndexData { sbwt, lcs, file_name: file_name.clone(), bases: seq_data.iter().map(|x| x.len()).sum() };
+        indexes.push(index);
+    };
+    indexes
+}
+
+pub async fn build_runner(
+    reference: &[SeqData],
+    build_opts: kbo::BuildOpts,
+    separately: bool,
+) -> Result<Vec<IndexData>, BuilderErr> {
+
+    if reference.is_empty() {
+        return Err(BuilderErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
+    }
+
+    let ref_contigs = reference.first().unwrap();
+
+    let res = if !separately {
+        let seq_data: Vec<u8> = ref_contigs.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>();
+        let bases: usize = seq_data.len();
+        let data = &[seq_data];
+        let index = crate::util::sbwt_builder(
+            data,
+            build_opts.clone(),
+        );
+        let index = index.await.unwrap();
+        vec![IndexData { sbwt: index.0, lcs: index.1, file_name: ref_contigs.file_name.clone(), bases }]
+    } else {
+        let seq_data: Vec<(String, Vec<u8>)> = ref_contigs.contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>();
+
+        let mut indexes: Vec<IndexData> = Vec::new();
+        for (contig_name, contig_seq) in seq_data {
+            let bases = contig_seq.len();
+            let data = &[contig_seq];
+            let index = crate::util::sbwt_builder(
+                data,
+                build_opts.clone(),
+            );
+            let index = index.await.unwrap();
+            indexes.push(IndexData { sbwt: index.0, lcs: index.1, file_name: contig_name, bases });
+        }
+        indexes
+    };
+
+    if !res.is_empty() {
+        return Ok(res)
+    }
+    Err(BuilderErr{ code: 0, message: "Couldn't index reference data.".to_string() })
 }
 
 pub async fn read_seq_data(file_contents: &Vec<u8>) -> Result<Vec<ContigData>, ParseError> {
@@ -66,7 +123,7 @@ pub async fn read_fasta_files(
 ) -> Result<Vec<SeqData>, ParseError> {
     let mut contigs: Vec<SeqData> = Vec::with_capacity(files.len());
     for (filename, contents) in files {
-        let data = crate::util::read_seq_data(&contents).await?;
+        let data = crate::util::read_seq_data(contents).await?;
         contigs.push(SeqData { contigs: data, file_name: filename.clone() });
     };
 

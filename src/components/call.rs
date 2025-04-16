@@ -11,8 +11,9 @@
 // the MIT license, <LICENSE-MIT> or <http://opensource.org/licenses/MIT>,
 // at your option.
 //
+use crate::common::*;
 use crate::dioxus_sortable::*;
-use crate::util::SeqData;
+use crate::opts::GuiOpts;
 
 use chrono::offset::Local;
 use dioxus::prelude::*;
@@ -75,12 +76,19 @@ pub struct CallResult {
     unknown: String,
 }
 
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct CallResults {
+    calls: Vec<CallResult>,
+    contig_info: Vec<(String, usize)>,
+    ref_file: String,
+}
+
 #[component]
 pub fn SortableCallResultTable(
-    data: Vec::<CallResult>,
+    data: CallResults,
 ) -> Element {
     let sorter = use_sorter::<CallResultField>();
-    sorter.read().sort(data.as_mut_slice());
+    sorter.read().sort(data.calls.as_mut_slice());
 
     rsx! {
         table {
@@ -100,7 +108,7 @@ pub fn SortableCallResultTable(
             }
             tbody {
                 {
-                    data.iter().map(|row| {
+                    data.calls.iter().map(|row| {
                         rsx! {
                             tr {
                                 td { "{row.chromosome}" }
@@ -124,13 +132,11 @@ pub fn SortableCallResultTable(
 
 #[component]
 fn CopyableCallResultTable(
-    data: Vec::<CallResult>,
-    ref_path: String,
-    contig_info: Vec<(String, usize)>,
+    data: CallResults,
 ) -> Element {
 
-    let display = format_call_header(&ref_path, &contig_info) +
-        &data.iter().map(|x| {
+    let display = format_call_header(&data.ref_file, &data.contig_info) +
+        &data.calls.iter().map(|x| {
         x.chromosome.clone() + "\t" +
             &x.position.to_string() + "\t" +
             &x.id.to_string() + "\t" +
@@ -148,7 +154,7 @@ fn CopyableCallResultTable(
             id: "call-result",
             name: "call-result",
             value: display,
-            rows: data.len() + 10,
+            rows: data.calls.len() + 10,
             width: "98%",
         },
     }
@@ -246,7 +252,7 @@ fn format_call_header(
 
 #[component]
 pub fn CallOptsSelector(
-    max_error_prob: Signal<f64>,
+    opts: Signal<GuiOpts>,
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -260,10 +266,10 @@ pub fn CallOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "1.00",
-                        value: "0.0000001",
+                        value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                            if let Ok(new_prob) = new { opts.write().aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -272,91 +278,94 @@ pub fn CallOptsSelector(
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub struct CallRunnerErr {
     code: usize,
     message: String,
 }
 
 async fn call_runner(
-    reference: &SeqData,
-    queries: &[SeqData],
+    reference: &[SeqData],
+    index: &IndexData,
     call_opts: kbo::CallOpts,
 ) -> Result<(Vec<(String, usize)>, Vec<CallResult>), CallRunnerErr>{
 
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
+    if reference.is_empty() {
         return Err(CallRunnerErr{ code: 2, message: "Argument `reference` is empty.".to_string() })
     }
-    if queries.is_empty() {
+    if index.lcs.is_empty() || index.file_name.is_empty() || index.bases == 0 {
         return Err(CallRunnerErr{ code: 3, message: "Argument `queries` is empty.".to_string() })
     }
 
-    let query_data: Vec<Vec<u8>> = queries[0].contigs.iter().map(|x| x.seq.clone()).collect();
-    let index = crate::util::sbwt_builder(&query_data, call_opts.sbwt_build_opts.clone()).await;
+    let ref_contigs = reference.first().unwrap();
+    let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(ref_contigs.contigs.len());
+    let mut res: Vec<CallResult> = Vec::new();
 
-    match index {
-        Ok((sbwt_query, sbwt_lcs)) => {
+    ref_contigs.contigs.iter().for_each(|contig| {
+        let mut header_contents = contig.name.split_whitespace();
+        let contig_name = header_contents.next().expect("Contig name");
+        contig_info.push((contig.name.clone(), contig.seq.len()));
+        let variants = kbo::call(&index.sbwt, &index.lcs, &contig.seq, call_opts.clone());
 
-            let mut contig_info: Vec<(String, usize)> = Vec::with_capacity(reference.contigs.len());
-            let mut res: Vec<CallResult> = Vec::new();
+        res.extend(variants.iter().flat_map(|variant| {
 
-            reference.contigs.iter().for_each(|contig| {
-                let mut header_contents = contig.name.split_whitespace();
-                let contig_name = header_contents.next().expect("Contig name");
-                contig_info.push((contig.name.clone(), contig.seq.len()));
-                let variants = kbo::call(&sbwt_query, &sbwt_lcs, &contig.seq, call_opts.clone());
-
-                res.extend(variants.iter().flat_map(|variant| {
-
-                    let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
-                    if flanking.is_some() {
-                        let (var1, var2) = flanking.unwrap();
-                        let record1 = format_call_result(&var1, &contig.seq, contig_name);
-                        let record2 = format_call_result(&var2, &contig.seq, contig_name);
-                        vec![record1, record2]
-                    } else {
-                        vec![format_call_result(variant, &contig.seq, contig_name)]
-                    }
-                }));
-            });
-            if !res.is_empty() {
-                Ok((contig_info, res))
+            let flanking = split_flanking_variants(&variant.ref_chars, &variant.query_chars, variant.query_pos);
+            if flanking.is_some() {
+                let (var1, var2) = flanking.unwrap();
+                let record1 = format_call_result(&var1, &contig.seq, contig_name);
+                let record2 = format_call_result(&var2, &contig.seq, contig_name);
+                vec![record1, record2]
             } else {
-                Err(CallRunnerErr{ code: 0, message: "No variants detected.".to_string() })
+                vec![format_call_result(variant, &contig.seq, contig_name)]
             }
-        },
-        Err(_) => Err(CallRunnerErr{ code: 1, message: "Variant calling error.".to_string() })
+        }));
+    });
+    if !res.is_empty() {
+        Ok((contig_info, res))
+    } else {
+        Err(CallRunnerErr{ code: 0, message: "No variants detected.".to_string() })
     }
 }
 
 #[component]
 pub fn Call(
-    ref_contigs: ReadOnlySignal<SeqData>,
-    query_contigs: ReadOnlySignal<Vec<SeqData>>,
-    interactive: ReadOnlySignal<bool>,
-    call_opts: kbo::CallOpts,
+    ref_contigs: ReadOnlySignal<Vec<SeqData>>,
+    index: ReadOnlySignal<Vec<IndexData>>,
+    opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
+    if ref_contigs.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+    if index.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+
     let variants = use_resource(move || {
-        let opts = call_opts.clone();
         async move {
             // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            call_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
+            call_runner(&ref_contigs.read(), index.read().first().unwrap(), opts.read().to_kbo_call()).await
         }
     }).suspend()?;
 
     match &*variants.read_unchecked() {
         Ok(data) => {
-            let ref_path = ref_contigs.read().file_name.clone();
+            let ref_path = ref_contigs.read()[0].file_name.clone();
+            let res = CallResults { calls: data.1.to_vec(), contig_info: data.0.to_vec(), ref_file: ref_path.clone() };
             rsx! {
-                if *interactive.read() {
-                    SortableCallResultTable { data: data.1.to_vec() }
+                if opts.read().out_opts.interactive {
+                    SortableCallResultTable { data: res }
                 } else {
-                    CopyableCallResultTable { data: data.1.to_vec(), ref_path, contig_info: data.0.to_vec() }
+                    CopyableCallResultTable { data: res }
                 }
             }
         },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } }
+        Err(e) => {
+            match e.code {
+                0 => rsx! { { "Error: ".to_string() + &e.message } },
+                1 => rsx! { { "Error: ".to_string() + &e.message } },
+                _ => rsx! { { "" } },
+            }
+        },
     }
 }

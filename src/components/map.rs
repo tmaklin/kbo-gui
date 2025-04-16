@@ -13,13 +13,12 @@
 //
 use dioxus::prelude::*;
 
-use crate::util::SeqData;
+use crate::common::*;
+use crate::opts::GuiOpts;
 
 #[component]
 pub fn MapOptsSelector(
-    max_error_prob: Signal<f64>,
-    do_vc: Signal<bool>,
-    do_gapfill: Signal<bool>,
+    opts: Signal<GuiOpts>,
 ) -> Element {
     rsx! {
         div { class: "row-contents",
@@ -33,10 +32,10 @@ pub fn MapOptsSelector(
                         name: "min_len",
                         min: "0",
                         max: "1.00",
-                        value: "0.0000001",
+                        value: opts.read().aln_opts.max_error_prob.to_string(),
                         onchange: move |event| {
                             let new = event.value().parse::<f64>();
-                            if let Ok(new_prob) = new { max_error_prob.set(new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON)) };
+                            if let Ok(new_prob) = new { opts.write().aln_opts.max_error_prob = new_prob.clamp(0_f64 + f64::EPSILON, 1_f64 - f64::EPSILON) };
                         }
                     },
               }
@@ -50,10 +49,10 @@ pub fn MapOptsSelector(
                         r#type: "checkbox",
                         id: "do_vc",
                         name: "do_vc",
-                        checked: *do_vc.read(),
+                        checked: opts.read().aln_opts.do_vc,
                         onchange: move |_| {
-                            let old: bool = *do_vc.read();
-                            *do_vc.write() = !old;
+                            let old: bool = opts.read().aln_opts.do_vc;
+                            opts.write().aln_opts.do_vc = !old;
                         }
                     },
               }
@@ -67,10 +66,10 @@ pub fn MapOptsSelector(
                         r#type: "checkbox",
                         id: "do_gapfill",
                         name: "do_gapfill",
-                        checked: *do_gapfill.read(),
+                        checked: opts.read().aln_opts.do_gapfill,
                         onchange: move |_| {
-                            let old: bool = *do_gapfill.read();
-                            *do_gapfill.write() = !old;
+                            let old: bool = opts.read().aln_opts.do_gapfill;
+                            opts.write().aln_opts.do_gapfill = !old;
                         }
                     },
               }
@@ -80,19 +79,24 @@ pub fn MapOptsSelector(
 
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub struct MapRunnerErr {
     code: usize,
     message: String,
 }
 
-async fn map_runner(
-    reference: &SeqData,
-    queries: &[SeqData],
-    map_opts: kbo::MapOpts,
-) -> Result<Vec<(String, Vec<u8>)>, MapRunnerErr> {
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct MapResult {
+    aln: Vec<u8>,
+    seq_name: String,
+}
 
-    if reference.contigs.is_empty() || reference.file_name.is_empty() {
+async fn map_runner(
+    reference: &[SeqData],
+    queries: &[IndexData],
+    map_opts: kbo::MapOpts,
+) -> Result<Vec<MapResult>, MapRunnerErr> {
+
+    if reference.is_empty() {
         return Err(MapRunnerErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
     }
 
@@ -100,39 +104,40 @@ async fn map_runner(
         return Err(MapRunnerErr{ code: 1, message: "Argument `queries` is empty.".to_string() })
     }
 
-    let aln = queries.iter().map(|query| {
+    let ref_contigs = reference.first().unwrap();
+    let aln = queries.iter().map(|index| {
 
-        let (sbwt, lcs) = crate::util::build_sbwt(
-            &query.contigs.iter().map(|x| x.seq.clone()).collect::<Vec<Vec<u8>>>(),
-            Some(map_opts.sbwt_build_opts.clone()),
-        );
-
-        let res: Vec<u8> = reference.contigs.iter().flat_map(|ref_contig| {
-                                    kbo::map(&ref_contig.seq, &sbwt, &lcs, map_opts.clone())
+        let res: Vec<u8> = ref_contigs.contigs.iter().flat_map(|ref_contig| {
+                                    kbo::map(&ref_contig.seq, &index.sbwt, &index.lcs, map_opts.clone())
                                 }).collect();
-        (query.file_name.clone(), res)
-    }).collect::<Vec<(String, Vec<u8>)>>();
+        MapResult { seq_name: index.file_name.clone(), aln: res }
+    }).collect::<Vec<MapResult>>();
 
     if !aln.is_empty() {
         return Ok(aln)
     }
 
-    Err(MapRunnerErr{ code: 1, message: "Mapping error.".to_string() })
+    Err(MapRunnerErr{ code: 0, message: "Mapping error.".to_string() })
 }
 
 #[component]
 pub fn Map(
-    ref_contigs: ReadOnlySignal<SeqData>,
-    query_contigs: ReadOnlySignal<Vec<SeqData>>,
-    map_opts: kbo::MapOpts,
+    ref_contigs: ReadOnlySignal<Vec<SeqData>>,
+    indexes: ReadOnlySignal<Vec<IndexData>>,
+    opts: ReadOnlySignal<GuiOpts>,
 ) -> Element {
 
+    if ref_contigs.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+    if indexes.read().is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+
     let aln = use_resource(move || {
-        let opts = map_opts.clone();
         async move {
-            // Delay start to render a loading spinner
             gloo_timers::future::TimeoutFuture::new(100).await;
-            map_runner(&ref_contigs.read(), &query_contigs.read(), opts).await
+            map_runner(&ref_contigs.read(), &indexes.read(), opts.read().to_kbo_map()).await
         }
     }).suspend()?;
 
@@ -142,19 +147,24 @@ pub fn Map(
                 CopyableMapResult { data: data.to_vec() }
             }
         },
-        Err(e) => rsx! { { "Error: ".to_string() + &e.message } },
+        Err(e) => {
+            match e.code {
+                0 => rsx! { { "Error: ".to_string() + &e.message } },
+                _ => rsx! { { "" } },
+            }
+        },
     }
 }
 
 #[component]
 fn CopyableMapResult(
-    data: Vec<(String, Vec<u8>)>,
+    data: Vec<MapResult>,
 ) -> Element {
 
-    let display = data.iter().map(|(file, aln)| {
+    let display = data.iter().map(|result| {
         let mut counter = 0;
-        let mut out = [">".to_owned() + file + &'\n'.to_string(),
-             aln.iter().flat_map(|x| {
+        let mut out = [">".to_owned() + &result.seq_name + &'\n'.to_string(),
+             result.aln.iter().flat_map(|x| {
                  counter += 1;
                  if counter % 80 == 0 {
                      counter = 0;
