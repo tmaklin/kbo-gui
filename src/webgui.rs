@@ -112,6 +112,7 @@ pub fn Kbo() -> Element {
               // Dynamically rendered components,
               // based on which KboMode is selected.
               div { class: "row-results",
+                    // Run commands
                     SuspenseBoundary {
                         fallback: |_| rsx! {
                             span { class: "loader" },
@@ -132,6 +133,20 @@ pub fn Kbo() -> Element {
                                 rsx! { Map { ref_contigs: reference, indexes: query_index, opts: gui_opts, result: results.map } }
                             },
                         }
+                    }
+              },
+              div { class: "row-results",
+                    // Render results
+                    match *kbo_mode.read() {
+                        KboMode::Call => {
+                            rsx! { CallRenderer { result: results.call, opts: gui_opts } }
+                        },
+                        KboMode::Find => {
+                            rsx! { FindRenderer { result: results.find, opts: gui_opts } }
+                        },
+                        KboMode::Map => {
+                            rsx! { MapRenderer { result: results.map, opts: gui_opts } }
+                        },
                     }
               }
         }

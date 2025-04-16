@@ -347,16 +347,25 @@ pub fn Find(
         return rsx! { { "".to_string() } }
     }
 
-    let res = use_resource(move || {
+    let _ = use_resource(move || {
         let ref_name = indexes.read()[0].file_name.clone();
         async move {
             gloo_timers::future::TimeoutFuture::new(100).await;
-            find_runner(&indexes.read(), &query_contigs.read(), &ref_name, opts.read().to_kbo_find()).await
+            let res = find_runner(&indexes.read(), &query_contigs.read(), &ref_name, opts.read().to_kbo_find()).await;
+            result.set(res);
+            gloo_timers::future::TimeoutFuture::new(10).await
         }
     }).suspend()?;
 
-    result.set((*res.read()).clone());
-    match &*res.read_unchecked() {
+    rsx!{ br {} }
+}
+
+#[component]
+pub fn FindRenderer(
+    result: ReadOnlySignal<Result<Vec<FindResult>, FindRunnerErr>>,
+    opts: ReadOnlySignal<GuiOpts>,
+) -> Element {
+    match &*result.read() {
         Ok(data) => {
             let req_len = opts.read().aln_opts.min_len;
             let filtered = data.iter().filter_map(|x| if x.length >= req_len{ Some(x.clone()) } else { None } ).collect::<Vec<FindResult>>();

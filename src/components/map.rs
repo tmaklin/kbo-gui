@@ -135,15 +135,25 @@ pub fn Map(
         return rsx! { { "".to_string() } }
     }
 
-    let aln = use_resource(move || {
+    let _ = use_resource(move || {
         async move {
             gloo_timers::future::TimeoutFuture::new(100).await;
-            map_runner(&ref_contigs.read(), &indexes.read(), opts.read().to_kbo_map()).await
+            let aln = map_runner(&ref_contigs.read(), &indexes.read(), opts.read().to_kbo_map()).await;
+            result.set(aln);
+            gloo_timers::future::TimeoutFuture::new(10).await
         }
     }).suspend()?;
 
-    result.set((*aln.read()).clone());
-    match &*aln.read_unchecked() {
+
+    rsx!{ br {} }
+}
+
+#[component]
+pub fn MapRenderer(
+    result: ReadOnlySignal<Result<Vec<MapResult>, MapRunnerErr>>,
+    opts: ReadOnlySignal<GuiOpts>,
+) -> Element {
+    match &*result.read() {
         Ok(data) => {
             rsx! {
                 CopyableMapResult { data: data.to_vec() }
