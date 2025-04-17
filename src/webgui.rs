@@ -120,16 +120,21 @@ pub fn Kbo() -> Element {
                         IndexBuilder { seq_data: queries, gui_opts, cached_index: index }
 
                         // Run commands
-                        match *kbo_mode.read() {
-                            KboMode::Call => {
-                                rsx!{ Call { ref_contigs: reference, index: index, opts: gui_opts, result: results.call } }
-                            },
-                            KboMode::Find => {
-                                rsx! { Find { indexes: index, query_contigs: reference, opts: gui_opts, result: results.find } }
-                            },
-                            KboMode::Map => {
-                                rsx! { Map { ref_contigs: reference, indexes: index, opts: gui_opts, result: results.map } }
-                            },
+                        {
+                            &*use_resource(move || async move {
+                                gloo_timers::future::TimeoutFuture::new(1).await;
+                                match *kbo_mode.read() {
+                                    KboMode::Call => {
+                                        rsx!{ Call { ref_contigs: reference, index: index, opts: gui_opts, result: results.call } }
+                                    },
+                                    KboMode::Find => {
+                                        rsx! { Find { indexes: index, query_contigs: reference, opts: gui_opts, result: results.find } }
+                                    },
+                                    KboMode::Map => {
+                                        rsx! { Map { ref_contigs: reference, indexes: index, opts: gui_opts, result: results.map } }
+                                    },
+                                }
+                            }).suspend()?.read()
                         }
                     }
               },
