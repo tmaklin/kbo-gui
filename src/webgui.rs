@@ -110,11 +110,13 @@ pub fn Kbo() -> Element {
 
               // Dynamically rendered components,
               // based on which KboMode is selected.
-              div { class: "row-results",
-                    SuspenseBoundary {
-                        fallback: |_| rsx! {
+              SuspenseBoundary {
+                  fallback: |_| rsx! {
+                      div { class: "row-results",
                             span { class: "loader" },
-                        },
+                      },
+                  },
+                  div { class: "row-results",
                         {
                             &*use_resource(move || async move {
                                 rsx! { IndexBuilder { seq_data: queries, gui_opts, cached_index: index } }
@@ -135,22 +137,26 @@ pub fn Kbo() -> Element {
                                 }
                             }).suspend()?.read()
                         },
-                    }
+                  }
+                  div { class: "row-results",
+                        // Render results
+                        {
+                            &*use_resource(move || async move {
+                                match *kbo_mode.read() {
+                                    KboMode::Call => {
+                                        rsx! { CallRenderer { result: results.call, opts: gui_opts } }
+                                    },
+                                    KboMode::Find => {
+                                        rsx! { FindRenderer { result: results.find, opts: gui_opts } }
+                                    },
+                                    KboMode::Map => {
+                                        rsx! { MapRenderer { result: results.map, opts: gui_opts } }
+                                    },
+                                }
+                            }).suspend()?.read()
+                        },
+                  }
               },
-              div { class: "row-results",
-                    // Render results
-                    match *kbo_mode.read() {
-                        KboMode::Call => {
-                            rsx! { CallRenderer { result: results.call, opts: gui_opts } }
-                        },
-                        KboMode::Find => {
-                            rsx! { FindRenderer { result: results.find, opts: gui_opts } }
-                        },
-                        KboMode::Map => {
-                            rsx! { MapRenderer { result: results.map, opts: gui_opts } }
-                        },
-                    }
-              }
         }
         footer { class: "footer",
                  div { class: "row-footer",
