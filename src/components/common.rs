@@ -93,7 +93,7 @@ pub fn DetailSwitcher(
                 r#type: "checkbox",
                 name: "interactive",
                 id: "interactive",
-                checked: true,
+                checked: opts.read().out_opts.interactive,
                 onchange: move |_| {
                     let old: bool = opts.read().out_opts.interactive;
                     opts.write().out_opts.interactive = !old;
@@ -185,7 +185,7 @@ pub fn InteractivitySwitcher(
                 r#type: "checkbox",
                 name: "detailed",
                 id: "detailed",
-                checked: false,
+                checked: opts.read().out_opts.detailed,
                 onchange: move |_| {
                     let old: bool = opts.read().out_opts.detailed;
                     opts.write().out_opts.detailed = !old;
