@@ -350,6 +350,7 @@ pub fn Find(
     let _ = use_resource(move || {
         let ref_name = indexes.read()[0].file_name.clone();
         async move {
+            gloo_timers::future::TimeoutFuture::new(100).await;
             let res = find_runner(&indexes.read(), &query_contigs.read(), &ref_name, opts.read().to_kbo_find()).await;
             result.set(res);
         }

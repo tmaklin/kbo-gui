@@ -343,6 +343,7 @@ pub fn Call(
 
     let _ = use_resource(move || {
         async move {
+            gloo_timers::future::TimeoutFuture::new(100).await;
             let variants = call_runner(&ref_contigs.read(), index.read().first().unwrap(), opts.read().to_kbo_call()).await;
             result.set(variants);
         }

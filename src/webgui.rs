@@ -115,14 +115,13 @@ pub fn Kbo() -> Element {
                         fallback: |_| rsx! {
                             span { class: "loader" },
                         },
-
-                        // Build index
-                        IndexBuilder { seq_data: queries, gui_opts, cached_index: index }
-
-                        // Run commands
                         {
                             &*use_resource(move || async move {
-                                gloo_timers::future::TimeoutFuture::new(1).await;
+                                rsx! { IndexBuilder { seq_data: queries, gui_opts, cached_index: index } }
+                            }).suspend()?.read()
+                        },
+                        {
+                            &*use_resource(move || async move {
                                 match *kbo_mode.read() {
                                     KboMode::Call => {
                                         rsx!{ Call { ref_contigs: reference, index: index, opts: gui_opts, result: results.call } }
@@ -135,7 +134,7 @@ pub fn Kbo() -> Element {
                                     },
                                 }
                             }).suspend()?.read()
-                        }
+                        },
                     }
               },
               div { class: "row-results",

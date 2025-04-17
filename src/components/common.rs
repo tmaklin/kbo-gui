@@ -157,10 +157,14 @@ pub fn IndexBuilder(
     cached_index: Signal<Vec<IndexData>>,
 ) -> Element {
 
-  let indexes = use_resource(move || async move {
-      // Delay start to render a loading spinner
-      gloo_timers::future::TimeoutFuture::new(10).await;
-      let mut indexes: Vec<IndexData> = Vec::new();
+    if seq_data.is_empty() {
+        return rsx! { { "".to_string() } }
+    }
+
+    let indexes = use_resource(move || async move {
+        // Delay start to render a loading spinner
+        gloo_timers::future::TimeoutFuture::new(100).await;
+        let mut indexes: Vec<IndexData> = Vec::new();
         if gui_opts.read().out_opts.detailed {
             let tmp = crate::util::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
             if let Ok(mut data) = tmp {
