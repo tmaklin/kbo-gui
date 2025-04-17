@@ -96,10 +96,10 @@ fn SortableFindResultTable(
         table {
             thead {
                 tr {
-                    Th { sorter: sorter, field: FindResultField::Query, "ref" }
-                    Th { sorter: sorter, field: FindResultField::Ref, "query" }
-                    Th { sorter: sorter, field: FindResultField::QStart, "r.start" }
-                    Th { sorter: sorter, field: FindResultField::QEnd, "r.end" }
+                    Th { sorter: sorter, field: FindResultField::Query, "query" }
+                    Th { sorter: sorter, field: FindResultField::Ref, "ref" }
+                    Th { sorter: sorter, field: FindResultField::QStart, "q.start" }
+                    Th { sorter: sorter, field: FindResultField::QEnd, "q.end" }
                     Th { sorter: sorter, field: FindResultField::Strand, "strand" }
                     Th { sorter: sorter, field: FindResultField::Length, "length" }
                     Th { sorter: sorter, field: FindResultField::Mismatches, "mismatches" }
@@ -107,8 +107,8 @@ fn SortableFindResultTable(
                     Th { sorter: sorter, field: FindResultField::GapOpens, "gap_opens" }
                     Th { sorter: sorter, field: FindResultField::Identity, "identity" }
                     Th { sorter: sorter, field: FindResultField::Coverage, "coverage" }
-                    Th { sorter: sorter, field: FindResultField::QContig, "ref.contig" }
-                    Th { sorter: sorter, field: FindResultField::RContig, "query.contig" }
+                    Th { sorter: sorter, field: FindResultField::QContig, "query.contig" }
+                    Th { sorter: sorter, field: FindResultField::RContig, "ref.contig" }
                 }
             }
             tbody {
@@ -145,7 +145,7 @@ fn CopyableFindResultTable(
     data: Vec::<FindResult>,
 ) -> Element {
 
-    let header = "ref\tquery\tr.start\tr.end\tstrand\tlength\tmismatches\tgap_bases\tgap_opens\tidentity\tcoverage\tref.contig\tquery.contig";
+    let header = "query\tref\tq.start\tq.end\tstrand\tlength\tmismatches\tgap_bases\tgap_opens\tidentity\tcoverage\tquery.contig\tref.contig";
     let display = header.to_string() + &data.iter().map(|x| {
         let identity_rounded: String = format!("{:.2}", x.identity);
         let coverage_rounded: String = format!("{:.2}", x.coverage);
