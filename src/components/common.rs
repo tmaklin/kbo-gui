@@ -162,7 +162,18 @@ pub fn IndexBuilder(
   }
 
   let indexes = use_resource(move || async move {
-      build_indexes(&seq_data.read(), gui_opts.read().build_opts.to_kbo()).await
+        // Delay start to render a loading spinner
+        let mut indexes: Vec<IndexData> = Vec::new();
+        if gui_opts.read().out_opts.detailed {
+            let tmp = crate::util::build_runner(&seq_data.read(), gui_opts.read().build_opts.to_kbo(), true).await;
+            if let Ok(mut data) = tmp {
+                indexes.append(&mut data);
+            }
+        } else {
+            let mut tmp = build_indexes(&seq_data.read(), gui_opts.read().build_opts.to_kbo()).await;
+            indexes.append(&mut tmp);
+        }
+        indexes
     }).suspend()?;
 
     use_effect(move || {
@@ -191,7 +202,7 @@ pub fn InteractivitySwitcher(
                     opts.write().out_opts.detailed = !old;
                 }
             },
-            "Split reference by contig",
+            "Split query by contig",
         } else {
             br {},
         }

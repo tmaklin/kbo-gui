@@ -17,7 +17,6 @@ use crate::dioxus_sortable::*;
 use needletail::Sequence;
 
 use crate::common::*;
-use crate::util::BuilderErr;
 use crate::opts::GuiOpts;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -333,61 +332,15 @@ async fn find_runner(
     Err(FindRunnerErr{ code: 0, message: "No alignments detected.".to_string() })
 }
 
-
-async fn build_runner(
-    reference: &[SeqData],
-    build_opts: kbo::BuildOpts,
-    separately: bool,
-) -> Result<Vec<IndexData>, BuilderErr> {
-
-    if reference.is_empty() {
-        return Err(BuilderErr{ code: 1, message: "Argument `reference` is empty.".to_string() })
-    }
-
-    let ref_contigs = reference.first().unwrap();
-
-    let res = if !separately {
-        let seq_data: Vec<u8> = ref_contigs.contigs.iter().flat_map(|contig| contig.seq.clone()).collect::<Vec<u8>>();
-        let bases: usize = seq_data.len();
-        let data = &[seq_data];
-        let index = crate::util::sbwt_builder(
-            data,
-            build_opts.clone(),
-        );
-        let index = index.await.unwrap();
-        vec![IndexData { sbwt: index.0, lcs: index.1, file_name: ref_contigs.file_name.clone(), bases }]
-    } else {
-        let seq_data: Vec<(String, Vec<u8>)> = ref_contigs.contigs.iter().map(|contig| (contig.name.clone(), contig.seq.clone())).collect::<Vec<(String, Vec<u8>)>>();
-
-        let mut indexes: Vec<IndexData> = Vec::new();
-        for (contig_name, contig_seq) in seq_data {
-            let bases = contig_seq.len();
-            let data = &[contig_seq];
-            let index = crate::util::sbwt_builder(
-                data,
-                build_opts.clone(),
-            );
-            let index = index.await.unwrap();
-            indexes.push(IndexData { sbwt: index.0, lcs: index.1, file_name: contig_name, bases });
-        }
-        indexes
-    };
-
-    if !res.is_empty() {
-        return Ok(res)
-    }
-    Err(BuilderErr{ code: 0, message: "Couldn't index reference data.".to_string() })
-}
-
 #[component]
 pub fn Find(
-    ref_contigs: ReadOnlySignal<Vec<SeqData>>,
+    indexes: ReadOnlySignal<Vec<IndexData>>,
     query_contigs: ReadOnlySignal<Vec<SeqData>>,
     opts: ReadOnlySignal<GuiOpts>,
     result: Signal<Result<Vec<FindResult>, FindRunnerErr>>,
 ) -> Element {
 
-    if ref_contigs.read().is_empty() {
+    if indexes.read().is_empty() {
         return rsx! { { "".to_string() } }
     }
     if query_contigs.read().is_empty() {
@@ -395,13 +348,9 @@ pub fn Find(
     }
 
     let _ = use_resource(move || {
-        let ref_name = ref_contigs.read().first().expect("Reference data").file_name.clone();
+        let ref_name = indexes.read()[0].file_name.clone();
         async move {
-            let indexes = build_runner(&ref_contigs.read(), opts.read().build_opts.to_kbo(), opts.read().out_opts.detailed).await;
-            let res = match indexes {
-                Ok(ref_index) => find_runner(&ref_index, &query_contigs.read(), &ref_name, opts.read().to_kbo_find()).await,
-                Err(e) => Err(FindRunnerErr { code: 0, message: "Error: ".to_string() + &e.message.to_string() }),
-            };
+            let res = find_runner(&indexes.read(), &query_contigs.read(), &ref_name, opts.read().to_kbo_find()).await;
             result.set(res);
         }
     }).suspend()?;

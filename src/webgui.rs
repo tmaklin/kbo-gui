@@ -125,7 +125,7 @@ pub fn Kbo() -> Element {
                                 rsx!{ Call { ref_contigs: reference, index: index, opts: gui_opts, result: results.call } }
                             },
                             KboMode::Find => {
-                                rsx! { Find { ref_contigs: reference, query_contigs: queries, opts: gui_opts, result: results.find } }
+                                rsx! { Find { indexes: index, query_contigs: reference, opts: gui_opts, result: results.find } }
                             },
                             KboMode::Map => {
                                 rsx! { Map { ref_contigs: reference, indexes: index, opts: gui_opts, result: results.map } }
